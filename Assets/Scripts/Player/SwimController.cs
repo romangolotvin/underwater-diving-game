@@ -1,0 +1,320 @@
+using UnityEngine;
+
+namespace UnderwaterDiving
+{
+    /// <summary>
+    /// First-person underwater swimming with buoyancy, quadratic drag, and tuned thrust.
+    /// Quality-focused: smooth accel, surface transition, and responsive look.
+    /// </summary>
+    [RequireComponent(typeof(Rigidbody))]
+    public class SwimController : MonoBehaviour
+    {
+        public static SwimController Instance { get; private set; }
+
+        [Header("Look")]
+        [SerializeField] Transform cameraPivot;
+        [SerializeField] float mouseSensitivity = 1.8f;
+        [SerializeField] float pitchMin = -82f;
+        [SerializeField] float pitchMax = 82f;
+        [SerializeField] bool invertY;
+
+        [Header("Thrust")]
+        [SerializeField] float swimForce = 28f;
+        [SerializeField] float verticalForce = 22f;
+        [SerializeField] float sprintMultiplier = 1.55f;
+        [SerializeField] float maxSwimSpeed = 7.5f;
+        [SerializeField] float maxSprintSpeed = 11f;
+        [SerializeField] float aboveWaterWalkForce = 18f;
+        [SerializeField] float jumpForce = 6.5f;
+
+        [Header("Buoyancy & Drag")]
+        [SerializeField] float playerHeight = 1.8f;
+        [SerializeField] float playerMass = 80f;
+        [SerializeField] float buoyancyStrength = 18f;
+        [SerializeField] float neutralBuoyancyBias = -0.35f;
+        [SerializeField] float linearDragUnderwater = 1.4f;
+        [SerializeField] float quadraticDragUnderwater = 0.55f;
+        [SerializeField] float angularDragUnderwater = 3.5f;
+        [SerializeField] float linearDragAir = 0.15f;
+        [SerializeField] float surfaceBreakDamping = 0.65f;
+
+        [Header("Feel")]
+        [SerializeField] float inputSmoothTime = 0.08f;
+        [SerializeField] float stopAssist = 2.2f;
+        [SerializeField] float nearSurfaceBobAmplitude = 0.08f;
+        [SerializeField] float nearSurfaceBobFrequency = 1.1f;
+
+        Rigidbody body;
+        float yaw;
+        float pitch;
+        Vector3 smoothedMove;
+        Vector3 moveVelocityRef;
+        bool cursorLocked = true;
+        DiverSuit suit;
+
+        public Transform CameraPivot => cameraPivot;
+        public bool IsUnderwater { get; private set; }
+        public float Submersion { get; private set; }
+        public float CurrentDepth { get; private set; }
+        public Vector3 Velocity => body != null ? body.linearVelocity : Vector3.zero;
+
+        void Awake()
+        {
+            Instance = this;
+            body = GetComponent<Rigidbody>();
+            body.mass = playerMass;
+            body.useGravity = true;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            body.constraints = RigidbodyConstraints.FreezeRotation;
+
+            suit = GetComponent<DiverSuit>();
+
+            if (cameraPivot == null)
+            {
+                var cam = GetComponentInChildren<Camera>();
+                if (cam != null)
+                    cameraPivot = cam.transform;
+            }
+
+            Vector3 e = transform.eulerAngles;
+            yaw = e.y;
+            pitch = 0f;
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
+        }
+
+        void Start()
+        {
+            LockCursor(true);
+        }
+
+        void Update()
+        {
+            HandleCursor();
+            if (cursorLocked)
+                HandleLook();
+        }
+
+        void FixedUpdate()
+        {
+            var water = WaterVolume.Instance;
+            if (water == null)
+                return;
+
+            Submersion = water.GetSubmersion(transform.position, playerHeight);
+            IsUnderwater = Submersion > 0.15f;
+            CurrentDepth = water.DepthBelowSurface(transform.position);
+
+            ApplyBuoyancy(water);
+            ApplyDrag();
+            ApplyThrust();
+            ClampMaxSpeed();
+            SoftFloorCeiling(water);
+        }
+
+        void HandleCursor()
+        {
+            if (Input.GetKeyDown(KeyCode.Escape))
+                LockCursor(false);
+            if (Input.GetMouseButtonDown(0) && !cursorLocked)
+                LockCursor(true);
+        }
+
+        public void LockCursor(bool locked)
+        {
+            cursorLocked = locked;
+            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !locked;
+        }
+
+        void HandleLook()
+        {
+            float mx = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
+            float my = Input.GetAxisRaw("Mouse Y") * mouseSensitivity * (invertY ? 1f : -1f);
+            yaw += mx;
+            pitch = Mathf.Clamp(pitch + my, pitchMin, pitchMax);
+
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            if (cameraPivot != null)
+                cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+        }
+
+        void ApplyBuoyancy(WaterVolume water)
+        {
+            if (Submersion <= 0.001f)
+            {
+                body.useGravity = true;
+                return;
+            }
+
+            // Partial gravity cancel + residual bias so the diver slowly sinks unless kicking up.
+            float gravityMag = Physics.gravity.magnitude;
+            Vector3 buoyancy = Vector3.up * (gravityMag * Submersion * water.Density * buoyancyStrength / 9.81f);
+            buoyancy += Vector3.up * (neutralBuoyancyBias * Submersion * playerMass);
+
+            // Soft surface slap: bleed upward velocity when crossing the surface.
+            if (Submersion < 0.45f && body.linearVelocity.y > 0f)
+            {
+                Vector3 v = body.linearVelocity;
+                v.y *= Mathf.Lerp(1f, surfaceBreakDamping, 1f - Submersion);
+                body.linearVelocity = v;
+            }
+
+            // Subtle idle bob when nearly neutrally floating near surface.
+            if (Submersion > 0.4f && Submersion < 0.95f && GetMoveInput().sqrMagnitude < 0.05f)
+            {
+                float bob = Mathf.Sin(Time.time * nearSurfaceBobFrequency * Mathf.PI * 2f) * nearSurfaceBobAmplitude;
+                buoyancy += Vector3.up * (bob * playerMass);
+            }
+
+            body.AddForce(buoyancy, ForceMode.Force);
+            body.useGravity = true;
+        }
+
+        void ApplyDrag()
+        {
+            if (IsUnderwater)
+            {
+                body.linearDamping = 0f;
+                body.angularDamping = angularDragUnderwater;
+
+                Vector3 v = body.linearVelocity;
+                float speed = v.magnitude;
+                if (speed > 0.001f)
+                {
+                    Vector3 drag = -v.normalized * (linearDragUnderwater * speed + quadraticDragUnderwater * speed * speed);
+                    // Heavier lateral drag when not thrusting helps "glide then settle".
+                    Vector3 input = GetMoveInput();
+                    if (input.sqrMagnitude < 0.05f)
+                        drag *= stopAssist;
+                    body.AddForce(drag, ForceMode.Acceleration);
+                }
+            }
+            else
+            {
+                body.linearDamping = linearDragAir;
+                body.angularDamping = 0.5f;
+            }
+        }
+
+        void ApplyThrust()
+        {
+            Vector3 raw = GetMoveInput();
+            smoothedMove = Vector3.SmoothDamp(smoothedMove, raw, ref moveVelocityRef, inputSmoothTime);
+
+            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            float forceMul = sprint ? sprintMultiplier : 1f;
+            if (suit != null)
+                forceMul *= suit.SwimSpeedMultiplier;
+
+            if (IsUnderwater)
+            {
+                Vector3 forward = cameraPivot != null ? cameraPivot.forward : transform.forward;
+                Vector3 right = cameraPivot != null ? cameraPivot.right : transform.right;
+                Vector3 wish = (forward * smoothedMove.z + right * smoothedMove.x + Vector3.up * smoothedMove.y);
+                if (wish.sqrMagnitude > 1f)
+                    wish.Normalize();
+
+                body.AddForce(wish * swimForce * forceMul, ForceMode.Acceleration);
+
+                // Extra dedicated vertical authority (Space / Ctrl already in GetMoveInput.y).
+                if (Mathf.Abs(smoothedMove.y) > 0.01f)
+                    body.AddForce(Vector3.up * smoothedMove.y * verticalForce * 0.35f * forceMul, ForceMode.Acceleration);
+            }
+            else
+            {
+                Vector3 flat = new Vector3(smoothedMove.x, 0f, smoothedMove.z);
+                if (flat.sqrMagnitude > 1f)
+                    flat.Normalize();
+                Vector3 world = transform.TransformDirection(flat);
+                body.AddForce(world * aboveWaterWalkForce, ForceMode.Acceleration);
+
+                if (Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f)
+                    body.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
+            }
+        }
+
+        void ClampMaxSpeed()
+        {
+            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            float max = sprint ? maxSprintSpeed : maxSwimSpeed;
+            if (suit != null)
+                max *= suit.SwimSpeedMultiplier;
+
+            Vector3 v = body.linearVelocity;
+            if (IsUnderwater)
+            {
+                if (v.magnitude > max)
+                    body.linearVelocity = v.normalized * max;
+            }
+            else
+            {
+                Vector3 flat = new Vector3(v.x, 0f, v.z);
+                if (flat.magnitude > max * 0.65f)
+                {
+                    flat = flat.normalized * (max * 0.65f);
+                    body.linearVelocity = new Vector3(flat.x, v.y, flat.z);
+                }
+            }
+        }
+
+        void SoftFloorCeiling(WaterVolume water)
+        {
+            Vector3 p = transform.position;
+            float minY = water.FloorY + 1.1f;
+            float maxY = water.SurfaceY + 8f;
+            if (p.y < minY)
+            {
+                p.y = minY;
+                transform.position = p;
+                Vector3 v = body.linearVelocity;
+                if (v.y < 0f) v.y = 0f;
+                body.linearVelocity = v;
+            }
+            else if (p.y > maxY)
+            {
+                p.y = maxY;
+                transform.position = p;
+            }
+
+            // Soft world radius fence.
+            Vector3 flat = new Vector3(p.x, 0f, p.z);
+            if (flat.magnitude > DiveWorldConfig.OceanRadius)
+            {
+                flat = flat.normalized * DiveWorldConfig.OceanRadius;
+                transform.position = new Vector3(flat.x, p.y, flat.z);
+                Vector3 v = body.linearVelocity;
+                Vector3 outward = flat.normalized;
+                float outwardSpeed = Vector3.Dot(v, outward);
+                if (outwardSpeed > 0f)
+                    body.linearVelocity = v - outward * outwardSpeed;
+            }
+        }
+
+        /// <summary>
+        /// x = strafe, y = up/down, z = forward.
+        /// </summary>
+        Vector3 GetMoveInput()
+        {
+            float x = Input.GetAxisRaw("Horizontal");
+            float z = Input.GetAxisRaw("Vertical");
+            float y = 0f;
+            if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E))
+                y += 1f;
+            if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.C))
+                y -= 1f;
+
+            // Mouse wheel for fine vertical trim while diving.
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.001f)
+                y += Mathf.Clamp(scroll * 8f, -1f, 1f);
+
+            return new Vector3(x, y, z);
+        }
+    }
+}
