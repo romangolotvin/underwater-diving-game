@@ -16,10 +16,6 @@ namespace UnderwaterDiving
     {
         public static SwimController Instance { get; private set; }
 
-        /// <summary>Cached coral stalls — FindObjectsByType every FixedUpdate was slow and race-prone.</summary>
-        static CoralDiveShop[] cachedCoralShops;
-        static int coralShopCacheFrame = -1;
-
         [Header("Look")]
         [SerializeField] Transform cameraPivot;
         [SerializeField] float mouseSensitivity = 1.8f;
@@ -136,35 +132,20 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Absolute UI gate from live panel flags — closed map/shop can never leave thrust gated.
+        /// Sync bookkeeping mask + cursor from live panel activeInHierarchy flags.
+        /// <see cref="GameUi.BlocksGameplay"/> itself ignores sticky bits and reads panels directly.
         /// </summary>
         public void ReconcileUiGate()
         {
             bool map = WorldMapPanel.Instance != null && WorldMapPanel.Instance.IsOpen;
             bool gear = GearMarket.Instance != null && GearMarket.Instance.IsOpen;
             bool decor = DecorShop.Instance != null && DecorShop.Instance.IsOpen;
-            bool coral = AnyCoralShopOpen();
+            bool coral = CoralDiveShop.AnyOpen();
             GameUi.ReconcileLive(map, gear, decor, coral);
         }
 
-        static bool AnyCoralShopOpen()
-        {
-            if (cachedCoralShops == null || coralShopCacheFrame != Time.frameCount / 30)
-            {
-                cachedCoralShops = Object.FindObjectsByType<CoralDiveShop>(FindObjectsSortMode.None);
-                coralShopCacheFrame = Time.frameCount / 30;
-            }
-            var shops = cachedCoralShops;
-            for (int i = 0; i < shops.Length; i++)
-            {
-                if (shops[i] != null && shops[i].IsOpen)
-                    return true;
-            }
-            return false;
-        }
-
         /// <summary>
-        /// Runs after shop LateUpdates (via UiGateTail) so a closed stall cannot leave mask sticky.
+        /// Runs after shop LateUpdates (via UiGateTail) so cursor/mask stay aligned with panels.
         /// </summary>
         public void ReconcileUiGateLate() => ReconcileUiGate();
 
@@ -257,7 +238,7 @@ namespace UnderwaterDiving
                 return;
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
-            if (!GameUi.BlocksGameplay && cursorLocked)
+            if (!GameUi.AnyModalPanelOpen() && cursorLocked)
                 LockCursor(true);
         }
 
@@ -266,15 +247,18 @@ namespace UnderwaterDiving
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
 
-            // Reconcile BEFORE the BlocksGameplay gate so a closed panel cannot skip a frame of move.
+            // Align mask/cursor; BlocksGameplay is live panel activeInHierarchy (not sticky bits).
             ReconcileUiGate();
 
             // Sample move every frame — WASD held keys are reliable here; FixedUpdate alone can miss.
             cachedMoveInput = SampleMoveInput();
-            if (!GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f && !IsUnderwater)
+
+            // Gate ONLY on explicit open panels — never a leftover bitmask.
+            bool modalOpen = GameUi.AnyModalPanelOpen();
+            if (!modalOpen && Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f && !IsUnderwater)
                 jumpQueued = true;
 
-            if (GameUi.BlocksGameplay)
+            if (modalOpen)
             {
                 // UI owns the cursor — never leave cursorLocked stuck true while free.
                 if (cursorLocked || Cursor.lockState == CursorLockMode.Locked)
@@ -319,8 +303,8 @@ namespace UnderwaterDiving
 
             ApplyBuoyancy();
             ApplyDrag();
-            // Move is never gated on cursor lock — only on blocking UI (map/shops).
-            if (!GameUi.BlocksGameplay)
+            // Move gated only on live map/shop panels — not cursor lock, not sticky mask.
+            if (!GameUi.AnyModalPanelOpen())
                 ApplyThrust();
             ClampMaxSpeed();
             SoftFloorCeiling(surfaceY, floorY);
@@ -426,7 +410,14 @@ namespace UnderwaterDiving
             yaw += mx;
             pitch = Mathf.Clamp(pitch + my, pitchMin, pitchMax);
 
-            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            // Rigidbody owns rotation — writing transform alone is overwritten by PhysX sync.
+            var yawRot = Quaternion.Euler(0f, yaw, 0f);
+            if (body != null)
+            {
+                body.MoveRotation(yawRot);
+                body.angularVelocity = Vector3.zero;
+            }
+            transform.rotation = yawRot;
             if (cameraPivot != null)
                 cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }

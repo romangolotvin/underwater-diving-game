@@ -28,8 +28,8 @@ namespace UnderwaterDiving
         Text toggleLabel;
         bool open;
 
-        /// <summary>True only while the map panel is actually visible.</summary>
-        public bool IsOpen => open && panelRoot != null && panelRoot.activeSelf;
+        /// <summary>True only while the map panel is actually visible in the hierarchy.</summary>
+        public bool IsOpen => open && panelRoot != null && panelRoot.activeInHierarchy;
 
         public static WorldMapPanel Attach(Transform hudRoot)
         {

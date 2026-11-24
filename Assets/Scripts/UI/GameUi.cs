@@ -4,9 +4,9 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Shared UI focus flag so shops/map pause speargun / look lock / thrust.
-    /// Uses a blocker mask so one panel's Close cannot clear another panel's block.
-    /// <see cref="ReconcileLive"/> is the absolute authority: closed panels can never
-    /// leave BlocksGameplay stuck true.
+    /// <see cref="BlocksGameplay"/> is LIVE panel state only (map/shop GameObject
+    /// activeInHierarchy) — never a sticky bitmask. Mask bookkeeping remains for
+    /// cursor edge helpers; it cannot gate WASD/look by itself.
     /// </summary>
     public static class GameUi
     {
@@ -22,8 +22,27 @@ namespace UnderwaterDiving
 
         static int mask;
         static int escapeConsumedFrame = -1;
+        static bool lastLiveBlocked;
 
-        public static bool BlocksGameplay => mask != 0;
+        /// <summary>
+        /// True only while a map/shop panel is actually open and active in hierarchy.
+        /// Sticky mask bits are ignored — that was the chronic Editor WASD/look killer.
+        /// </summary>
+        public static bool BlocksGameplay => AnyModalPanelOpen();
+
+        /// <summary>Live open check used by movement/look and by <see cref="BlocksGameplay"/>.</summary>
+        public static bool AnyModalPanelOpen()
+        {
+            if (WorldMapPanel.Instance != null && WorldMapPanel.Instance.IsOpen)
+                return true;
+            if (GearMarket.Instance != null && GearMarket.Instance.IsOpen)
+                return true;
+            if (DecorShop.Instance != null && DecorShop.Instance.IsOpen)
+                return true;
+            if (CoralDiveShop.AnyOpen())
+                return true;
+            return false;
+        }
 
         /// <summary>
         /// First caller this frame wins Escape (map/shops before swim unlock).
@@ -39,27 +58,22 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Set or clear one UI owner's contribution to the gameplay block.
-        /// Cursor lock only updates when the overall blocked state edges.
+        /// Set or clear one UI owner's contribution to the bookkeeping mask.
+        /// Cursor lock edges follow live modal state, not the mask alone.
         /// </summary>
         public static void SetBlocked(Blocker blocker, bool blocked)
         {
-            int before = mask;
             int bit = (int)blocker;
             if (blocked)
                 mask |= bit;
             else
                 mask &= ~bit;
 
-            if (before == mask)
-                return;
-
-            ApplyCursorEdge(before != 0, mask != 0);
+            SyncCursorToLive();
         }
 
         /// <summary>
-        /// Absolute sync from live panel open flags. Call every frame from SwimController
-        /// so a closed map/shop can never leave thrust gated.
+        /// Absolute sync from live panel open flags (keeps mask aligned; cursor follows live).
         /// </summary>
         public static void ReconcileLive(bool mapOpen, bool gearOpen, bool decorOpen, bool coralOpen)
         {
@@ -68,13 +82,23 @@ namespace UnderwaterDiving
             if (gearOpen) desired |= (int)Blocker.GearMarket;
             if (decorOpen) desired |= (int)Blocker.DecorShop;
             if (coralOpen) desired |= (int)Blocker.CoralShop;
+            mask = desired;
+            SyncCursorToLive();
+        }
 
-            if (desired == mask)
+        /// <summary>
+        /// Call once per frame from SwimController so cursor tracks live panels even if
+        /// no SetBlocked edge fired.
+        /// </summary>
+        public static void SyncCursorToLive()
+        {
+            bool now = AnyModalPanelOpen();
+            if (now == lastLiveBlocked)
                 return;
 
-            bool wasBlocked = mask != 0;
-            mask = desired;
-            ApplyCursorEdge(wasBlocked, mask != 0);
+            bool was = lastLiveBlocked;
+            lastLiveBlocked = now;
+            ApplyCursorEdge(was, now);
         }
 
         static void ApplyCursorEdge(bool wasBlocked, bool nowBlocked)
@@ -111,17 +135,19 @@ namespace UnderwaterDiving
                 ClearBlocking();
         }
 
-        /// <summary>Force-clear every blocker (boot / recovery).</summary>
+        /// <summary>Force-clear every blocker (boot / recovery) and re-lock cursor if no live modal.</summary>
         public static void ClearBlocking()
         {
-            int before = mask;
             mask = 0;
-            if (before == 0)
-                return;
-
-            var swim = SwimController.Instance;
-            if (swim != null)
-                swim.LockCursor(true);
+            // Heal open flags that cannot be true without a panel (boot path).
+            SyncCursorToLive();
+            if (!AnyModalPanelOpen())
+            {
+                lastLiveBlocked = false;
+                var swim = SwimController.Instance;
+                if (swim != null)
+                    swim.LockCursor(true);
+            }
         }
     }
 }

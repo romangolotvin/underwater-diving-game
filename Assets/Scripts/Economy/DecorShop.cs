@@ -91,7 +91,8 @@ namespace UnderwaterDiving
         }
 
         public bool PlayerNear => playerNear;
-        public bool IsOpen => open && panel != null && panel.activeSelf;
+        /// <summary>True only while the outfitter panel GameObject is active in hierarchy.</summary>
+        public bool IsOpen => open && panel != null && panel.activeInHierarchy;
 
         void Open()
         {

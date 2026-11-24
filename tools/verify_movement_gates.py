@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Static gate check for WASD / ApplyThrust (no Unity Play Mode).
+Static gate check for WASD / look (no Unity Play Mode).
 
 Asserts:
-1. FixedUpdate calls ApplyThrust only behind !GameUi.BlocksGameplay.
-2. Update reconciles UI before the BlocksGameplay early-return.
-3. Shore path writes body.position + transform.position (MovePosition is cancelled by PhysX).
-4. Closed map/shop IsOpen expressions cannot force BlocksGameplay true alone.
+1. GameUi.BlocksGameplay is LIVE panel state (AnyModalPanelOpen), not sticky mask.
+2. SwimController Update/FixedUpdate gate move/look on AnyModalPanelOpen / live panels.
+3. HandleLook writes Rigidbody.MoveRotation (not transform-only).
+4. Shore path writes body.position + transform.position (MovePosition is cancelled by PhysX).
 5. SampleMoveInput prefers GetKey over axes.
 6. M map toggle must not gate Open on BlocksGameplay.
 7. L flashlight must not early-out on BlocksGameplay.
+8. Panel IsOpen requires activeInHierarchy.
 """
 from __future__ import annotations
 
@@ -49,6 +50,21 @@ def main() -> int:
     decor = read(DECOR)
     coral = read(CORAL)
 
+    # --- Live BlocksGameplay (not sticky mask) ---
+    must(
+        "AnyModalPanelOpen" in game_ui and "BlocksGameplay => AnyModalPanelOpen()" in game_ui,
+        "GameUi.BlocksGameplay must delegate to AnyModalPanelOpen (live panels)",
+    )
+    must(
+        re.search(r"BlocksGameplay\s*=>\s*mask\s*!=\s*0", game_ui) is None,
+        "GameUi.BlocksGameplay must NOT be sticky mask != 0",
+    )
+    must(
+        "WorldMapPanel.Instance" in game_ui and "GearMarket.Instance" in game_ui,
+        "AnyModalPanelOpen must read map/shop Instances",
+    )
+    must("CoralDiveShop.AnyOpen()" in game_ui, "AnyModalPanelOpen must include CoralDiveShop.AnyOpen")
+
     # --- FixedUpdate path ---
     fu = re.search(r"void FixedUpdate\(\)\s*\{(.*?)\n        \}", swim, re.S)
     must(fu is not None, "FixedUpdate not found")
@@ -56,25 +72,38 @@ def main() -> int:
         body = fu.group(1)
         must("ReconcileUiGate()" in body, "FixedUpdate must ReconcileUiGate before thrust")
         must(
-            re.search(r"if\s*\(\s*!GameUi\.BlocksGameplay\s*\)\s*\n?\s*ApplyThrust\(\)", body) is not None,
-            "FixedUpdate must call ApplyThrust only when !BlocksGameplay",
+            re.search(
+                r"if\s*\(\s*!GameUi\.(AnyModalPanelOpen\(\)|BlocksGameplay)\s*\)\s*\n?\s*ApplyThrust\(\)",
+                body,
+            )
+            is not None,
+            "FixedUpdate must call ApplyThrust only when no live modal",
         )
-        must("ApplyThrust()" in body, "FixedUpdate must call ApplyThrust")
 
-    # --- Update: reconcile before early return ---
+    # --- Update: reconcile before early return; gate on live modal ---
     upd = re.search(r"void Update\(\)\s*\{(.*?)\n        \}", swim, re.S)
     must(upd is not None, "Update not found")
     if upd:
         body = upd.group(1)
         rec_i = body.find("ReconcileUiGate()")
-        block_i = body.find("if (GameUi.BlocksGameplay)")
+        block_i = body.find("modalOpen")
+        if block_i < 0:
+            block_i = body.find("AnyModalPanelOpen()")
         must(rec_i >= 0, "Update must call ReconcileUiGate")
-        must(block_i >= 0, "Update must gate on BlocksGameplay")
-        must(rec_i < block_i, "ReconcileUiGate must run before BlocksGameplay early-return")
+        must(block_i >= 0, "Update must gate on live modal (AnyModalPanelOpen)")
+        must(rec_i < block_i, "ReconcileUiGate must run before modal early-return")
         must("cachedMoveInput = SampleMoveInput()" in body, "Update must sample move input")
-        # Sample is allowed before or after reconcile; must exist before early-return uses smoothedMove
         sample_i = body.find("SampleMoveInput()")
         must(sample_i >= 0 and sample_i < block_i, "SampleMoveInput must run even when map about to block look")
+        must("HandleLook()" in body, "Update must call HandleLook when free")
+
+    # --- HandleLook must drive Rigidbody rotation ---
+    look = re.search(r"void HandleLook\(\)\s*\{(.*?)\n        \}", swim, re.S)
+    must(look is not None, "HandleLook missing")
+    if look:
+        body = look.group(1)
+        must("MoveRotation" in body, "HandleLook must MoveRotation on Rigidbody")
+        must("Mouse X" in body and "Mouse Y" in body, "HandleLook must read Mouse X/Y")
 
     # --- ApplyThrust shore vs swim ---
     must("ApplyShoreMove" in swim, "ApplyShoreMove missing")
@@ -83,7 +112,6 @@ def main() -> int:
         re.search(r"if\s*\(\s*Submersion\s*<\s*shoreMoveSubmersionMax\s*\)", swim) is not None,
         "ApplyThrust must branch on Submersion < shoreMoveSubmersionMax",
     )
-    # No early-return inside ApplyThrust / ApplyShoreMove / ApplySwimMove
     for name in ("ApplyThrust", "ApplyShoreMove", "ApplySwimMove"):
         m = re.search(rf"void {name}\([^\)]*\)\s*\{{(.*?)\n        \}}", swim, re.S)
         must(m is not None, f"{name} body not found")
@@ -105,21 +133,22 @@ def main() -> int:
         must(getkey_i >= 0, "SampleMoveInput must use GetKey")
         must(axis_i < 0 or getkey_i < axis_i, "GetKey must be preferred before axis fallback")
 
-    # --- Closed panels cannot assert block ---
-    must("public bool IsOpen => open && panelRoot != null && panelRoot.activeSelf" in world_map
-         or re.search(r"IsOpen\s*=>\s*open\s*&&\s*panelRoot", world_map) is not None,
-         "WorldMapPanel.IsOpen must require open+active")
+    # --- Closed panels: IsOpen requires activeInHierarchy ---
+    must(
+        re.search(r"IsOpen\s*=>\s*open\s*&&\s*panelRoot\s*!=\s*null\s*&&\s*panelRoot\.activeInHierarchy", world_map)
+        is not None,
+        "WorldMapPanel.IsOpen must require open+activeInHierarchy",
+    )
     for label, src in (("GearMarket", gear), ("DecorShop", decor), ("CoralDiveShop", coral)):
         must(
-            re.search(r"IsOpen\s*=>\s*open\s*&&\s*panel", src) is not None,
-            f"{label}.IsOpen must require open+active panel",
+            re.search(r"IsOpen\s*=>\s*open\s*&&\s*panel\s*!=\s*null\s*&&\s*panel\.activeInHierarchy", src) is not None,
+            f"{label}.IsOpen must require open+activeInHierarchy",
         )
+    must("static bool AnyOpen()" in coral or "public static bool AnyOpen()" in coral, "CoralDiveShop.AnyOpen missing")
 
-    # --- ReconcileLive absolute mask ---
+    # --- ReconcileLive still absolute for mask bookkeeping ---
     must("ReconcileLive" in game_ui, "GameUi.ReconcileLive missing")
-    must("mask = desired" in game_ui, "ReconcileLive must assign absolute mask")
-    must("DefaultExecutionOrder(-100)" in swim or 'DefaultExecutionOrder(-100)' in swim,
-         "SwimController must run Reconcile before other UI Updates")
+    must("DefaultExecutionOrder(-100)" in swim, "SwimController must run Reconcile before other UI Updates")
 
     # --- M / L must not be silenced by stale BlocksGameplay mask ---
     flash = read(FLASH)
@@ -133,9 +162,11 @@ def main() -> int:
             and re.search(r"else\s+if\s*\(\s*!GameUi\.BlocksGameplay", body) is None,
             "WorldMapPanel M Open must NOT gate on BlocksGameplay",
         )
-        must(re.search(r"if\s*\(\s*open\s*\)\s*\n?\s*Close\(\)\s*;\s*\n?\s*else\s*\n?\s*Open\(\)", body) is not None
-             or ("Close()" in body and "Open()" in body and "BlocksGameplay" not in body),
-             "WorldMapPanel M must toggle Open/Close without BlocksGameplay")
+        must(
+            re.search(r"if\s*\(\s*open\s*\)\s*\n?\s*Close\(\)\s*;\s*\n?\s*else\s*\n?\s*Open\(\)", body) is not None
+            or ("Close()" in body and "Open()" in body and "BlocksGameplay" not in body),
+            "WorldMapPanel M must toggle Open/Close without BlocksGameplay",
+        )
 
     flash_upd = re.search(r"void Update\(\)\s*\{(.*?)\n        \}", flash, re.S)
     must(flash_upd is not None, "DiverFlashlight.Update not found")
@@ -146,45 +177,40 @@ def main() -> int:
             "DiverFlashlight must not early-out on BlocksGameplay",
         )
         must("WasTogglePressed()" in body or "GetKeyDown" in body, "DiverFlashlight must poll L")
-    must("KeyCode.L" in flash, "DiverFlashlight must honor KeyCode.L")
-    must("EnsureBound()" in flash, "DiverFlashlight must EnsureBound before toggle")
-    if flash_upd:
-        # Comments may mention BlocksGameplay; executable gate must not.
-        code_lines = [
-            ln for ln in flash_upd.group(1).splitlines()
-            if not ln.strip().startswith("//")
-        ]
+        code_lines = [ln for ln in body.splitlines() if not ln.strip().startswith("//")]
         must(
             not any("GameUi.BlocksGameplay" in ln for ln in code_lines),
             "DiverFlashlight Update must ignore BlocksGameplay",
         )
+    must("KeyCode.L" in flash, "DiverFlashlight must honor KeyCode.L")
+    must("EnsureBound()" in flash, "DiverFlashlight must EnsureBound before toggle")
 
-    # --- Shop/map LateUpdate must not SetBlocked(false) (sticky WASD race) ---
+    # --- Shop/map LateUpdate must not SetBlocked(false) (sticky race leftover) ---
     for label, src in (("GearMarket", gear), ("DecorShop", decor), ("WorldMapPanel", world_map)):
         late = re.search(r"void LateUpdate\(\)\s*\{(.*?)\n        \}", src, re.S)
         must(late is not None, f"{label}.LateUpdate missing")
         if late:
             body = late.group(1)
             must(
-                re.search(r"SetBlocked\([^)]*,\s*false\s*\)", body) is None
-                and "SetBlocked(GameUi.Blocker.Map, IsOpen)" not in body
-                and "SetBlocked(GameUi.Blocker.GearMarket, IsOpen)" not in body
-                and "SetBlocked(GameUi.Blocker.DecorShop, IsOpen)" not in body,
-                f"{label}.LateUpdate must not clear mask / sync IsOpen directly",
+                re.search(r"SetBlocked\([^)]*,\s*false\s*\)", body) is None,
+                f"{label}.LateUpdate must not clear mask",
             )
-            must("IsOpen" in body and "SetBlocked" in body, f"{label}.LateUpdate must assert only while open")
 
     tail = read(ROOT / "Assets/Scripts/UI/UiGateTail.cs")
-    must("ReconcileUiGateLate" in tail or "ReconcileUiGate" in tail, "UiGateTail must late-reconcile UI mask")
+    must("ReconcileUiGateLate" in tail or "ReconcileUiGate" in tail, "UiGateTail must late-reconcile UI")
     must("DefaultExecutionOrder(1000)" in tail, "UiGateTail must run after shop LateUpdates")
 
-    # --- Path summary when map closed ---
-    print("PATH (map closed → walk):")
-    print("  Update: ReconcileUiGate() → mask=0 → SampleMoveInput(GetKey)")
-    print("  FixedUpdate: ReconcileUiGate() → !BlocksGameplay → ApplyThrust()")
-    print("  LateUpdate(UiGateTail@1000): ReconcileUiGateLate() clears sticky shop/map bits")
-    print("  ApplyThrust: Submersion < shoreMoveSubmersionMax → ApplyShoreMove → body+transform.position (XZ)")
-    print("  ApplyThrust: else → ApplySwimMove → AddForce")
+    # --- Input Manager still legacy ---
+    proj = read(ROOT / "ProjectSettings/ProjectSettings.asset")
+    must("activeInputHandler: 0" in proj, "activeInputHandler must be Input Manager (0)")
+    inp = read(ROOT / "ProjectSettings/InputManager.asset")
+    for axis in ("Horizontal", "Vertical", "Mouse X", "Mouse Y"):
+        must(f"m_Name: {axis}" in inp, f"InputManager missing axis {axis}")
+
+    print("PATH (no modal → walk+look):")
+    print("  BlocksGameplay := AnyModalPanelOpen() (panel.activeInHierarchy), NEVER sticky mask")
+    print("  Update: ReconcileUiGate → SampleMoveInput(GetKey) → !modal → HandleLook(MoveRotation)")
+    print("  FixedUpdate: !AnyModalPanelOpen → ApplyThrust → shore body+transform.position")
     print("PATH (hotkeys):")
     print("  M: WorldMapPanel toggles Open/Close (no BlocksGameplay gate)")
     print("  L: DiverFlashlight toggles spot (no BlocksGameplay gate)")
