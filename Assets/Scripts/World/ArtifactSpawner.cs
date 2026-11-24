@@ -32,6 +32,8 @@ namespace UnderwaterDiving
                 float rad = Mathf.Sqrt((float)rng.NextDouble()) * maxR;
                 float x = Mathf.Cos(ang) * rad;
                 float z = Mathf.Sin(ang) * rad;
+                if (z < DiveWorldConfig.BeachShoreZ + 30f)
+                    z = DiveWorldConfig.BeachShoreZ + 30f + (float)(rng.NextDouble() * 250.0);
 
                 float y = DiveWorldConfig.WaterSurfaceY - Mathf.Lerp(minD + 2f, maxD - 1f, (float)rng.NextDouble());
                 if (Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 0.5f, z), Vector3.down, out var hit, 120f))

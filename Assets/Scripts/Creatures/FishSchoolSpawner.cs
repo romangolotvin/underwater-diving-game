@@ -54,21 +54,46 @@ namespace UnderwaterDiving
         {
             var band = FishAgent.SpeciesBand(species);
             FishAgent.BandRange(band, out float minD, out float maxD);
-            float maxR = DiveWorldConfig.SoftBoundaryRadius * 0.7f;
             var body = CreatureCatalog.Get(species).Body;
+            float shoreZ = DiveWorldConfig.BeachShoreZ;
 
-            float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
-            float rad = Mathf.Sqrt((float)rng.NextDouble()) * maxR;
-            if (body == CreatureBody.Eel || body == CreatureBody.Snake)
-                rad = Mathf.Sqrt((float)rng.NextDouble()) * (maxR * 0.5f);
+            float x;
+            float z;
+            // Bias shallow fauna into the nearshore reef band so the beach walk-in feels alive.
+            if (band == DepthBand.Shallow && rng.NextDouble() < 0.65)
+            {
+                x = (float)(rng.NextDouble() * 260.0 - 130.0);
+                z = shoreZ + 35f + (float)(rng.NextDouble() * 380.0);
+            }
+            else
+            {
+                float maxR = DiveWorldConfig.SoftBoundaryRadius * 0.7f;
+                float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
+                float rad = Mathf.Sqrt((float)rng.NextDouble()) * maxR;
+                if (body == CreatureBody.Eel || body == CreatureBody.Snake)
+                    rad = Mathf.Sqrt((float)rng.NextDouble()) * (maxR * 0.5f);
 
-            float x = Mathf.Cos(ang) * rad;
-            float z = Mathf.Sin(ang) * rad;
+                x = Mathf.Cos(ang) * rad;
+                z = Mathf.Sin(ang) * rad;
+                // Never place fish on the dry beach pad.
+                if (z < shoreZ + 20f)
+                    z = shoreZ + 20f + (float)(rng.NextDouble() * 200.0);
+            }
+
             float depth = Mathf.Lerp(minD + 1.5f, maxD - 1.5f, (float)rng.NextDouble());
             float y = DiveWorldConfig.WaterSurfaceY - depth;
 
             if (Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out var hit, 120f))
             {
+                float floorDepth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
+                if (floorDepth < 0.8f)
+                {
+                    // Reject land hits — nudge offshore into water.
+                    z = Mathf.Max(z, shoreZ + 40f);
+                    if (Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out hit, 120f))
+                        floorDepth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
+                }
+
                 if (body == CreatureBody.Ray || body == CreatureBody.Crayfish || body == CreatureBody.Isopod)
                     y = hit.point.y + (body == CreatureBody.Ray ? 1.3f : 0.6f);
                 else if (body == CreatureBody.Eel || body == CreatureBody.Snake)

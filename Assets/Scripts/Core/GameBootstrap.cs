@@ -63,6 +63,7 @@ namespace UnderwaterDiving
             RenderSettings.skybox = null;
             RenderSettings.subtractiveShadowColor = new Color(0.15f, 0.25f, 0.35f);
 
+            // Starting location: sunny shore walk-in (OpenOcean site with beach geometry).
             DiveWorldConfig.SetActiveSite(DiveWorldConfig.DiveSite.OpenOcean);
 
             OceanFloorBuilder.Build(root);
@@ -102,7 +103,9 @@ namespace UnderwaterDiving
             var player = new GameObject("Diver");
             player.tag = "Player";
             player.transform.SetParent(root, false);
+            // Beach waterline — feet on wet sand, facing +Z into calm open water.
             player.transform.position = DiveWorldConfig.PlayerSpawn;
+            player.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
 
             var rb = player.AddComponent<Rigidbody>();
             rb.mass = 80f;
@@ -154,7 +157,8 @@ namespace UnderwaterDiving
             camGo.transform.localPosition = Vector3.zero;
             var cam = camGo.AddComponent<Camera>();
             cam.nearClipPlane = 0.05f;
-            cam.farClipPlane = 220f;
+            // Long vista for the 1.5 km coastal shelf from the beach.
+            cam.farClipPlane = 2800f;
             cam.fieldOfView = 72f;
             cam.allowMSAA = true;
             cam.allowHDR = true;

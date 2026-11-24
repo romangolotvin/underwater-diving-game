@@ -33,15 +33,16 @@ namespace UnderwaterDiving
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
                 new Color(0.85f, 0.55f, 0.25f), 0.4f, 0.08f, new Vector2(1.6f, 2.8f));
 
-            // Cluster centers away from spawn and main platforms.
+            // Far-shelf clusters (well past the beach ramp / nearshore shops).
+            float far = DiveWorldConfig.BeachShoreZ + 1100f;
             Vector2[] hubs =
             {
-                new Vector2(55f, 40f),
-                new Vector2(-60f, 35f),
-                new Vector2(45f, -70f),
-                new Vector2(-40f, -55f),
-                new Vector2(75f, -20f),
-                new Vector2(-70f, 70f)
+                new Vector2(55f, far + 40f),
+                new Vector2(-60f, far + 35f),
+                new Vector2(45f, far - 70f),
+                new Vector2(-40f, far - 55f),
+                new Vector2(75f, far - 20f),
+                new Vector2(-70f, far + 70f)
             };
 
             int shopIndex = 0;
