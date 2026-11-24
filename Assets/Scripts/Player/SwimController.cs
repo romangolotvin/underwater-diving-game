@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace UnderwaterDiving
 {
@@ -54,11 +56,13 @@ namespace UnderwaterDiving
         bool cursorLocked = true;
         int lockAcquiredFrame = -1;
         DiverSuit suit;
+        static readonly List<RaycastResult> UiRaycastBuffer = new List<RaycastResult>(16);
 
         public Transform CameraPivot => cameraPivot;
-        public bool IsCursorLocked => cursorLocked && Cursor.lockState == CursorLockMode.Locked;
+        /// <summary>Gameplay wants a locked cursor (may briefly disagree with engine until asserted).</summary>
+        public bool IsCursorLocked => cursorLocked;
         /// <summary>True when locked, but not on the same frame the lock was acquired (click-to-re-lock).</summary>
-        public bool CanUseCombatInput => IsCursorLocked && lockAcquiredFrame != Time.frameCount;
+        public bool CanUseCombatInput => cursorLocked && lockAcquiredFrame != Time.frameCount;
 
         public void SetCameraPivot(Transform pivot) => cameraPivot = pivot;
 
@@ -96,6 +100,10 @@ namespace UnderwaterDiving
             Vector3 e = transform.eulerAngles;
             yaw = e.y;
             pitch = 0f;
+
+            // Never inherit a paused timescale from a previous play session / editor quirk.
+            if (Time.timeScale <= 0.001f)
+                Time.timeScale = 1f;
         }
 
         void OnDestroy()
@@ -109,8 +117,21 @@ namespace UnderwaterDiving
             LockCursor(true);
         }
 
+        void OnApplicationFocus(bool focus)
+        {
+            if (!focus)
+                return;
+            if (Time.timeScale <= 0.001f)
+                Time.timeScale = 1f;
+            if (!GameUi.BlocksGameplay && cursorLocked)
+                LockCursor(true);
+        }
+
         void Update()
         {
+            if (Time.timeScale <= 0.001f)
+                Time.timeScale = 1f;
+
             if (GameUi.BlocksGameplay)
             {
                 // UI owns the cursor — never leave cursorLocked stuck true while free.
@@ -120,7 +141,11 @@ namespace UnderwaterDiving
             }
 
             HandleCursor();
-            if (IsCursorLocked)
+
+            // Drive look from our intent flag, not raw Cursor.lockState.
+            // Editor/player often drop lockState until a click; gating on engine state
+            // left look dead even while WASD should work.
+            if (cursorLocked)
                 HandleLook();
         }
 
@@ -147,6 +172,7 @@ namespace UnderwaterDiving
 
             ApplyBuoyancy();
             ApplyDrag();
+            // Move is never gated on cursor lock — only on blocking UI.
             if (!GameUi.BlocksGameplay)
                 ApplyThrust();
             ClampMaxSpeed();
@@ -167,26 +193,53 @@ namespace UnderwaterDiving
 
         void HandleCursor()
         {
-            // Engine / focus can unlock without our flag (Esc on some players).
-            if (cursorLocked && Cursor.lockState != CursorLockMode.Locked)
-                cursorLocked = false;
-
-            // Click-to-re-lock: use real lock state so a desynced flag can't block recovery.
-            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
+            // Esc always unlocks when not consumed by map/shops first.
+            if (GameUi.TryConsumeEscape())
             {
-                if (!IsPointerOverUi())
-                    LockCursor(true);
+                LockCursor(false);
                 return;
             }
 
-            // Map/shops consume Escape first via GameUi.TryConsumeEscape.
-            if (GameUi.TryConsumeEscape())
-                LockCursor(false);
+            // Lost focus / OS released lock — keep flag, re-assert when focused.
+            // Do NOT clear cursorLocked just because lockState flipped; that killed look
+            // after launch when the engine refused lock until a Game View click.
+            if (cursorLocked && Application.isFocused && Cursor.lockState != CursorLockMode.Locked)
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+
+            // Click-to-re-lock: any LMB while unlocked, unless over a real Button/Selectable.
+            // Ignore non-interactive HUD Images/Texts that still have raycastTarget.
+            if (!cursorLocked && Input.GetMouseButtonDown(0))
+            {
+                if (!IsPointerOverInteractiveUi())
+                    LockCursor(true);
+            }
         }
 
-        static bool IsPointerOverUi()
+        /// <summary>
+        /// True only when the pointer hits a Selectable (Button, Toggle, …).
+        /// Plain Images/Texts with raycastTarget must not block click-to-re-lock.
+        /// </summary>
+        static bool IsPointerOverInteractiveUi()
         {
-            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            var es = EventSystem.current;
+            if (es == null)
+                return false;
+
+            var ped = new PointerEventData(es) { position = Input.mousePosition };
+            UiRaycastBuffer.Clear();
+            es.RaycastAll(ped, UiRaycastBuffer);
+            for (int i = 0; i < UiRaycastBuffer.Count; i++)
+            {
+                var go = UiRaycastBuffer[i].gameObject;
+                if (go == null)
+                    continue;
+                if (go.GetComponentInParent<Selectable>() != null)
+                    return true;
+            }
+            return false;
         }
 
         public void LockCursor(bool locked)
@@ -200,6 +253,13 @@ namespace UnderwaterDiving
 
         void HandleLook()
         {
+            if (cameraPivot == null)
+            {
+                var cam = GetComponentInChildren<Camera>();
+                if (cam != null)
+                    cameraPivot = cam.transform.parent != null ? cam.transform.parent : cam.transform;
+            }
+
             float mx = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
             float my = Input.GetAxisRaw("Mouse Y") * mouseSensitivity * (invertY ? 1f : -1f);
             yaw += mx;
@@ -365,11 +425,19 @@ namespace UnderwaterDiving
 
         /// <summary>
         /// x = strafe, y = up/down, z = forward.
+        /// Uses both axes and GetKey so WASD still works if Input Manager axes misbehave.
         /// </summary>
         Vector3 GetMoveInput()
         {
             float x = Input.GetAxisRaw("Horizontal");
             float z = Input.GetAxisRaw("Vertical");
+
+            // Hard key fallback (legacy Input) — never depend solely on axis wiring.
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) x = -1f;
+            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) x = 1f;
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) z = -1f;
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) z = 1f;
+
             float y = 0f;
             if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E))
                 y += 1f;

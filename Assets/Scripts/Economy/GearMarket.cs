@@ -46,7 +46,7 @@ namespace UnderwaterDiving
             Transform root = canvas != null ? canvas.transform : CreateFallbackCanvas().transform;
 
             var bg = ShopUiUtil.MakePanel(root, "GearMarketPanel", new Vector2(0.2f, 0.14f), new Vector2(0.8f, 0.86f),
-                new Color(0.04f, 0.08f, 0.12f, 0.94f));
+                new Color(0.04f, 0.08f, 0.12f, 0.94f), raycast: true);
             panel = bg.gameObject;
             panel.SetActive(false);
 
@@ -104,17 +104,28 @@ namespace UnderwaterDiving
 
         void Open()
         {
+            if (open) return;
             open = true;
-            panel.SetActive(true);
+            if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = true;
+                panel.SetActive(true);
+            }
             GameUi.SetBlocking(true);
             Refresh();
         }
 
         void Close()
         {
+            if (!open) return;
             open = false;
             if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = false;
                 panel.SetActive(false);
+            }
             GameUi.SetBlocking(false);
         }
 

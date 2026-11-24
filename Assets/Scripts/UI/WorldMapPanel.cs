@@ -42,12 +42,14 @@ namespace UnderwaterDiving
 
             toggleLabel = toggleButton.GetComponentInChildren<Text>();
 
+            // Decorative backdrop — no raycast needed; buttons/pins handle clicks.
             var backdrop = ShopUiUtil.MakePanel(
                 hudRoot,
                 "WorldMapPanel",
                 new Vector2(0.12f, 0.12f),
                 new Vector2(0.88f, 0.88f),
-                new Color(0.02f, 0.08f, 0.14f, 0.94f));
+                new Color(0.02f, 0.08f, 0.14f, 0.94f),
+                raycast: false);
             panelRoot = backdrop.gameObject;
 
             ShopUiUtil.MakeText(
@@ -72,7 +74,8 @@ namespace UnderwaterDiving
                 "MapArea",
                 new Vector2(0.04f, 0.08f),
                 new Vector2(0.96f, 0.88f),
-                new Color(0.04f, 0.22f, 0.32f, 0.95f));
+                new Color(0.04f, 0.22f, 0.32f, 0.95f),
+                raycast: false);
 
             // Soft grid lines for a readable generated map.
             for (int i = 1; i <= 3; i++)
@@ -80,10 +83,10 @@ namespace UnderwaterDiving
                 float t = i / 4f;
                 ShopUiUtil.MakePanel(mapArea.transform, $"HGrid{i}",
                     new Vector2(0.05f, t - 0.002f), new Vector2(0.95f, t + 0.002f),
-                    new Color(0.3f, 0.55f, 0.65f, 0.25f));
+                    new Color(0.3f, 0.55f, 0.65f, 0.25f), raycast: false);
                 ShopUiUtil.MakePanel(mapArea.transform, $"VGrid{i}",
                     new Vector2(t - 0.002f, 0.05f), new Vector2(t + 0.002f, 0.95f),
-                    new Color(0.3f, 0.55f, 0.65f, 0.25f));
+                    new Color(0.3f, 0.55f, 0.65f, 0.25f), raycast: false);
             }
 
             ShopUiUtil.MakeText(
@@ -132,12 +135,14 @@ namespace UnderwaterDiving
             var aMin = new Vector2(site.Anchor.x - half, site.Anchor.y - half);
             var aMax = new Vector2(site.Anchor.x + half, site.Anchor.y + half);
 
+            // Pins need raycast — they are the Selectable hit target.
             var pin = ShopUiUtil.MakePanel(
                 mapArea,
                 $"Pin_{site.Label}",
                 aMin,
                 aMax,
-                new Color(0.85f, 0.55f, 0.2f, 0.95f));
+                new Color(0.85f, 0.55f, 0.2f, 0.95f),
+                raycast: true);
 
             var btn = pin.gameObject.AddComponent<Button>();
             var colors = btn.colors;
@@ -179,7 +184,10 @@ namespace UnderwaterDiving
         {
             if (open) return;
             open = true;
-            panelRoot.SetActive(true);
+            if (panelRoot != null)
+            {
+                panelRoot.SetActive(true);
+            }
             if (toggleLabel != null) toggleLabel.text = "Закрыть";
             GameUi.SetBlocking(true);
         }
@@ -188,7 +196,8 @@ namespace UnderwaterDiving
         {
             if (!open) return;
             open = false;
-            panelRoot.SetActive(false);
+            if (panelRoot != null)
+                panelRoot.SetActive(false);
             if (toggleLabel != null) toggleLabel.text = "Карта";
             GameUi.SetBlocking(false);
         }

@@ -4,7 +4,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Minimal head/camera-forward torch. Toggle with L (F is used by shops).
-    /// Uses legacy Input; project has no Input System package (activeInputHandler=Both).
+    /// Uses legacy Input; project has no Input System package (activeInputHandler=Input Manager).
     /// </summary>
     public class DiverFlashlight : MonoBehaviour
     {
@@ -62,8 +62,7 @@ namespace UnderwaterDiving
 
         bool WasTogglePressed()
         {
-            // Legacy Input — works with activeInputHandler Both/Input Manager.
-            // No com.unity.inputsystem package in this project; Keyboard.current unavailable.
+            // Legacy Input Manager only (no com.unity.inputsystem in this project).
             return Input.GetKeyDown(toggleKey);
         }
 

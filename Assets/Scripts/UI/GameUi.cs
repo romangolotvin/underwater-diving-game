@@ -45,5 +45,11 @@ namespace UnderwaterDiving
                 swim.LockCursor(true);
             }
         }
+
+        /// <summary>Force-clear blocking (boot / recovery).</summary>
+        public static void ClearBlocking()
+        {
+            BlocksGameplay = false;
+        }
     }
 }

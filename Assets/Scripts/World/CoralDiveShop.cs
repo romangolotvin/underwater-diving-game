@@ -148,7 +148,7 @@ namespace UnderwaterDiving
 
             var bg = ShopUiUtil.MakePanel(canvas.transform, "CoralShopPanel_" + vendorName,
                 new Vector2(0.28f, 0.22f), new Vector2(0.72f, 0.78f),
-                new Color(0.03f, 0.1f, 0.12f, 0.94f));
+                new Color(0.03f, 0.1f, 0.12f, 0.94f), raycast: true);
             panel = bg.gameObject;
             panel.SetActive(false);
 
@@ -193,17 +193,28 @@ namespace UnderwaterDiving
 
         void Open()
         {
+            if (open) return;
             open = true;
-            panel.SetActive(true);
+            if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = true;
+                panel.SetActive(true);
+            }
             GameUi.SetBlocking(true);
             Refresh();
         }
 
         void Close()
         {
+            if (!open) return;
             open = false;
             if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = false;
                 panel.SetActive(false);
+            }
             GameUi.SetBlocking(false);
         }
 

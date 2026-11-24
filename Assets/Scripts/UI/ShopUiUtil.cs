@@ -26,10 +26,12 @@ namespace UnderwaterDiving
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.text = content;
+            // Labels must never eat clicks (click-to-re-lock / speargun).
+            text.raycastTarget = false;
             return text;
         }
 
-        public static Image MakePanel(Transform parent, string name, Vector2 aMin, Vector2 aMax, Color color)
+        public static Image MakePanel(Transform parent, string name, Vector2 aMin, Vector2 aMax, Color color, bool raycast = true)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -40,6 +42,7 @@ namespace UnderwaterDiving
             rt.offsetMax = Vector2.zero;
             var img = go.AddComponent<Image>();
             img.color = color;
+            img.raycastTarget = raycast;
             return img;
         }
 

@@ -50,7 +50,7 @@ namespace UnderwaterDiving
             }
 
             var bg = ShopUiUtil.MakePanel(canvas.transform, "DecorShopPanel", new Vector2(0.24f, 0.2f), new Vector2(0.76f, 0.8f),
-                new Color(0.1f, 0.05f, 0.1f, 0.94f));
+                new Color(0.1f, 0.05f, 0.1f, 0.94f), raycast: true);
             panel = bg.gameObject;
             panel.SetActive(false);
 
@@ -93,17 +93,28 @@ namespace UnderwaterDiving
 
         void Open()
         {
+            if (open) return;
             open = true;
-            panel.SetActive(true);
+            if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = true;
+                panel.SetActive(true);
+            }
             GameUi.SetBlocking(true);
             Refresh();
         }
 
         void Close()
         {
+            if (!open) return;
             open = false;
             if (panel != null)
+            {
+                var img = panel.GetComponent<Image>();
+                if (img != null) img.raycastTarget = false;
                 panel.SetActive(false);
+            }
             GameUi.SetBlocking(false);
         }
 

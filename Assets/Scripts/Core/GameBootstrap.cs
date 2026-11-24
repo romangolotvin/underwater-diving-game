@@ -27,6 +27,9 @@ namespace UnderwaterDiving
             }
             booted = true;
             DontDestroyOnLoad(gameObject);
+            GameUi.ClearBlocking();
+            if (Time.timeScale <= 0.001f)
+                Time.timeScale = 1f;
             BuildWorld();
         }
 
@@ -172,6 +175,7 @@ namespace UnderwaterDiving
             var look = player.AddComponent<DiverLook>();
             look.Bind(camPivot);
             var swim = player.AddComponent<SwimController>();
+            swim.enabled = true;
             swim.SetCameraPivot(camPivot);
 
             var gun = player.AddComponent<Speargun>();
