@@ -21,7 +21,7 @@ namespace UnderwaterDiving
             go.transform.localScale = new Vector3(size, size, 1f);
             go.transform.position = new Vector3(0f, DiveWorldConfig.WaterSurfaceY - 1f, 0f);
 
-            var mat = ProceduralTextures.MakeAdditive(ProceduralTextures.CausticAlbedo, new Color(0.65f, 0.9f, 1f, 0.45f), 0.45f);
+            var mat = ProceduralTextures.MakeAdditive(ProceduralTextures.CausticAlbedo, new Color(0.65f, 0.9f, 1f), 0.45f);
             mat.mainTextureScale = new Vector2(18f, 18f);
             var mr = go.GetComponent<MeshRenderer>();
             mr.sharedMaterial = mat;
