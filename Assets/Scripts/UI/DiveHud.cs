@@ -96,6 +96,15 @@ namespace UnderwaterDiving
             return text;
         }
 
+        static bool NearCoralShop()
+        {
+            var shops = Object.FindObjectsByType<CoralDiveShop>(FindObjectsSortMode.None);
+            for (int i = 0; i < shops.Length; i++)
+                if (shops[i] != null && shops[i].PlayerNear)
+                    return true;
+            return false;
+        }
+
         void LateUpdate()
         {
             var swim = SwimController.Instance;
@@ -105,7 +114,7 @@ namespace UnderwaterDiving
 
             float depth = swim.CurrentDepth;
             depthText.text = $"{depth:0.0} m";
-            zoneText.text = DiveWorldConfig.BandLabel(DiveWorldConfig.GetBand(depth));
+            zoneText.text = $"{DiveWorldConfig.SiteLabel} · {DiveWorldConfig.BandLabel(DiveWorldConfig.GetBand(depth))}";
 
             if (suit != null)
             {
@@ -134,6 +143,10 @@ namespace UnderwaterDiving
             else if (DecorShop.Instance != null && DecorShop.Instance.PlayerNear)
             {
                 hintText.text = "F — Outfitter";
+            }
+            else if (NearCoralShop())
+            {
+                hintText.text = "F — Coral Vendor";
             }
             else
             {

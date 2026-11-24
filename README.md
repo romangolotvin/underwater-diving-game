@@ -1,6 +1,6 @@
 # Underwater Diving Game
 
-Unity 6 first-person underwater dive prototype — open ocean swimming, hunting, and trading.
+Unity 6 first-person underwater dive prototype — **Open Ocean** site (spawn underwater, shops on submerged platforms), hunting, and trading.
 
 **Editor:** `6000.0.85f1` (Unity 6)
 

@@ -63,10 +63,13 @@ namespace UnderwaterDiving
             RenderSettings.skybox = null;
             RenderSettings.subtractiveShadowColor = new Color(0.15f, 0.25f, 0.35f);
 
+            DiveWorldConfig.SetActiveSite(DiveWorldConfig.DiveSite.OpenOcean);
+
             OceanFloorBuilder.Build(root);
-            WaterSurfaceVisual.Create(root);
+            WaveOceanSurface.Create(root);
             DayNightCycle.Create(root, sun);
             UnderwaterAtmosphere.Create(root, sun);
+            CausticShimmer.Create(root, sun);
             OceanAmbience.Create(root);
 
             // Economy services on bootstrap object.
@@ -79,6 +82,7 @@ namespace UnderwaterDiving
 
             // Zone flavour + life + loot after floor collider exists.
             DepthZoneVisuals.Build(root);
+            DeepCoralGrove.Create(root);
             FishSchoolSpawner.Create(root);
             ArtifactSpawner.Create(root);
             GearMarket.Create(root);
@@ -155,6 +159,7 @@ namespace UnderwaterDiving
             cam.allowMSAA = true;
             cam.allowHDR = true;
             camGo.AddComponent<AudioListener>();
+            UnderwaterVision.Attach(cam);
 
             body.GetComponent<MeshRenderer>().enabled = false;
             tank.GetComponent<MeshRenderer>().enabled = false;

@@ -4,7 +4,7 @@ using UnityEngine.UI;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Surface gear market: sell catch, buy suit / speargun upgrades.
+    /// Open-ocean gear market on a submerged platform. Sell catch, buy upgrades.
     /// </summary>
     public class GearMarket : MonoBehaviour
     {
@@ -27,49 +27,8 @@ namespace UnderwaterDiving
 
         public static GameObject BuildStall(Transform parent, Vector3 pos, string name, Color tint)
         {
-            var root = new GameObject(name);
-            root.transform.SetParent(parent, false);
-            root.transform.position = pos;
-
-            var deck = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            deck.name = "Deck";
-            deck.transform.SetParent(root.transform, false);
-            deck.transform.localScale = new Vector3(5.5f, 0.35f, 4f);
-            deck.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
-                tint, 0.35f, 0.15f, new Vector2(2f, 2f));
-
-            var mast = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            mast.name = "Mast";
-            Object.Destroy(mast.GetComponent<Collider>());
-            mast.transform.SetParent(root.transform, false);
-            mast.transform.localPosition = new Vector3(0f, 1.6f, 0f);
-            mast.transform.localScale = new Vector3(0.15f, 1.5f, 0.15f);
-            mast.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.SuitAlbedo, ProceduralTextures.SuitNormal,
-                Color.Lerp(tint, Color.white, 0.2f), 0.4f, 0.1f, new Vector2(1f, 1f));
-
-            var flag = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            flag.name = "Flag";
-            Object.Destroy(flag.GetComponent<Collider>());
-            flag.transform.SetParent(root.transform, false);
-            flag.transform.localPosition = new Vector3(0.55f, 2.7f, 0f);
-            flag.transform.localScale = new Vector3(1.1f, 0.55f, 0.05f);
-            flag.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                tint, 0.3f, 0.05f, new Vector2(1f, 1f));
-
-            var buoy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            buoy.name = "Buoy";
-            Object.Destroy(buoy.GetComponent<Collider>());
-            buoy.transform.SetParent(root.transform, false);
-            buoy.transform.localPosition = new Vector3(2.2f, 0.5f, 1.4f);
-            buoy.transform.localScale = Vector3.one * 0.7f;
-            buoy.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.85f, 0.35f, 0.2f), 0.4f, 0.1f, new Vector2(1f, 1f));
-
-            return root;
+            // Open Ocean: underwater platforms. (Shore piers are for country sites later.)
+            return UnderwaterShopPlatform.Build(parent, pos, name, tint);
         }
 
         void Awake() => Instance = this;
@@ -130,7 +89,7 @@ namespace UnderwaterDiving
             if (swim != null)
             {
                 float d = Vector3.Distance(swim.transform.position, transform.position);
-                playerNear = d <= DiveWorldConfig.ShopInteractRadius && swim.transform.position.y > -3.5f;
+                playerNear = d <= DiveWorldConfig.ShopInteractRadius;
             }
 
             if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))

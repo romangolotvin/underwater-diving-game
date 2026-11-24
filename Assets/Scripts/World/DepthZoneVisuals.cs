@@ -22,8 +22,9 @@ namespace UnderwaterDiving
             var rng = new System.Random(303);
             float maxR = DiveWorldConfig.SoftBoundaryRadius * 0.7f;
 
-            // Mid-depth kelp (no shallow coral duplicate; none in deep).
-            for (int i = 0; i < 55; i++)
+            // Mid-depth kelp strands in open water (no beach coral). Fewer in pure Open Ocean.
+            int kelpCount = DiveWorldConfig.IsOpenOcean ? 28 : 55;
+            for (int i = 0; i < kelpCount; i++)
             {
                 float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
                 float rad = Mathf.Sqrt((float)rng.NextDouble()) * maxR;

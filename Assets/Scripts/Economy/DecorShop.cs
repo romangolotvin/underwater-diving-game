@@ -78,7 +78,7 @@ namespace UnderwaterDiving
             if (swim != null)
             {
                 float d = Vector3.Distance(swim.transform.position, transform.position);
-                playerNear = d <= DiveWorldConfig.ShopInteractRadius && swim.transform.position.y > -3.5f;
+                playerNear = d <= DiveWorldConfig.ShopInteractRadius;
             }
 
             if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))

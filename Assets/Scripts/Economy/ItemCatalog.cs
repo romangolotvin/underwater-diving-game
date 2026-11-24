@@ -11,17 +11,6 @@ namespace UnderwaterDiving
         Cosmetic
     }
 
-    public enum FishSpecies
-    {
-        ReefChromis,
-        AmberJack,
-        AbyssGrouper,
-        MorayEel,
-        SeaTurtle,
-        EagleRay,
-        Barracuda
-    }
-
     public enum ArtifactId
     {
         CoralCharm,
@@ -70,19 +59,8 @@ namespace UnderwaterDiving
         }
     }
 
-    /// <summary>
-    /// In-world item names and prices only — no meta/prompt text.
-    /// </summary>
     public static class ItemCatalog
     {
-        public static readonly ItemDef ReefChromis = new("fish_reef", "Reef Chromis", ItemKind.FishCatch, 12);
-        public static readonly ItemDef AmberJack = new("fish_jack", "Amber Jack", ItemKind.FishCatch, 28);
-        public static readonly ItemDef AbyssGrouper = new("fish_grouper", "Abyss Grouper", ItemKind.FishCatch, 55);
-        public static readonly ItemDef MorayEel = new("fish_moray", "Moray Eel", ItemKind.FishCatch, 42);
-        public static readonly ItemDef SeaTurtle = new("fish_turtle", "Sea Turtle", ItemKind.FishCatch, 70);
-        public static readonly ItemDef EagleRay = new("fish_ray", "Eagle Ray", ItemKind.FishCatch, 60);
-        public static readonly ItemDef Barracuda = new("fish_cuda", "Barracuda", ItemKind.FishCatch, 85);
-
         public static readonly ItemDef CoralCharmArt = new("art_charm", "Coral Charm", ItemKind.Artifact, 40);
         public static readonly ItemDef BronzeCompass = new("art_compass", "Bronze Compass", ItemKind.Artifact, 95);
         public static readonly ItemDef AbyssIdol = new("art_idol", "Abyss Idol", ItemKind.Artifact, 180);
@@ -110,8 +88,10 @@ namespace UnderwaterDiving
         {
             var d = new Dictionary<string, ItemDef>();
             void Add(ItemDef def) => d[def.Id] = def;
-            Add(ReefChromis); Add(AmberJack); Add(AbyssGrouper);
-            Add(MorayEel); Add(SeaTurtle); Add(EagleRay); Add(Barracuda);
+
+            foreach (FishSpecies s in System.Enum.GetValues(typeof(FishSpecies)))
+                Add(CreatureCatalog.AsItem(s));
+
             Add(CoralCharmArt); Add(BronzeCompass); Add(AbyssIdol);
             Add(UpAir); Add(UpDepth); Add(UpFins); Add(UpBuoyancy); Add(UpLamp); Add(UpBag);
             Add(UpRope); Add(UpSharp); Add(UpWeight);
@@ -121,16 +101,7 @@ namespace UnderwaterDiving
 
         public static bool TryGet(string id, out ItemDef def) => ById.TryGetValue(id, out def);
 
-        public static ItemDef ForFish(FishSpecies species) => species switch
-        {
-            FishSpecies.AmberJack => AmberJack,
-            FishSpecies.AbyssGrouper => AbyssGrouper,
-            FishSpecies.MorayEel => MorayEel,
-            FishSpecies.SeaTurtle => SeaTurtle,
-            FishSpecies.EagleRay => EagleRay,
-            FishSpecies.Barracuda => Barracuda,
-            _ => ReefChromis
-        };
+        public static ItemDef ForFish(FishSpecies species) => CreatureCatalog.AsItem(species);
 
         public static ItemDef ForArtifact(ArtifactId id) => id switch
         {
@@ -185,16 +156,7 @@ namespace UnderwaterDiving
             CosmeticId.ShellMask
         };
 
-        public static Color FishTint(FishSpecies species) => species switch
-        {
-            FishSpecies.AmberJack => new Color(0.75f, 0.62f, 0.28f),
-            FishSpecies.AbyssGrouper => new Color(0.22f, 0.28f, 0.38f),
-            FishSpecies.MorayEel => new Color(0.35f, 0.55f, 0.32f),
-            FishSpecies.SeaTurtle => new Color(0.35f, 0.48f, 0.28f),
-            FishSpecies.EagleRay => new Color(0.45f, 0.42f, 0.48f),
-            FishSpecies.Barracuda => new Color(0.55f, 0.58f, 0.52f),
-            _ => new Color(0.2f, 0.65f, 0.75f)
-        };
+        public static Color FishTint(FishSpecies species) => CreatureCatalog.Get(species).Tint;
 
         public static Color ArtifactTint(ArtifactId id) => id switch
         {

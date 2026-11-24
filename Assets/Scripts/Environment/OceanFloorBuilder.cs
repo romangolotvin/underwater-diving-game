@@ -64,15 +64,15 @@ namespace UnderwaterDiving
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
+            // Open Ocean: deep silt floor — no beach sand / shore.
+            bool openOcean = DiveWorldConfig.IsOpenOcean;
             mr.sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.SandAlbedo,
-                ProceduralTextures.SandNormal,
-                Color.white,
-                0.22f,
-                0.05f,
-                new Vector2(48f, 48f));
-            // Blend toward silt in shader via vertex colors isn't in Standard easily;
-            // use sand base + second material regions via rock scatter instead.
+                openOcean ? ProceduralTextures.SiltAlbedo : ProceduralTextures.SandAlbedo,
+                openOcean ? ProceduralTextures.SiltNormal : ProceduralTextures.SandNormal,
+                openOcean ? new Color(0.75f, 0.82f, 0.9f) : Color.white,
+                openOcean ? 0.1f : 0.22f,
+                openOcean ? 0.04f : 0.05f,
+                new Vector2(openOcean ? 36f : 48f, openOcean ? 36f : 48f));
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
 
             ScatterInteriorFeatures(go.transform, heights, res, -half, step);
@@ -231,8 +231,8 @@ namespace UnderwaterDiving
                     depth > DiveWorldConfig.MidMaxDepth ? deepRockMat : rockMat;
             }
 
-            // Coral / reef detail only in shallow band — none in deep (per design notes).
-            int coralCount = 70;
+            // Open Ocean: no coral reef / beach scatter — only rocks + deep forms.
+            int coralCount = DiveWorldConfig.IsOpenOcean ? 0 : 70;
             for (int n = 0; n < coralCount; n++)
             {
                 float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
