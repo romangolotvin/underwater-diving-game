@@ -70,14 +70,17 @@ namespace UnderwaterDiving
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
-            // Bright Maldives white sand.
-            mr.sharedMaterial = ProceduralTextures.MakeLit(
+            // Warm textured sand — tint stays off pure white so grain/normals read.
+            var sandFloor = ProceduralTextures.MakeLit(
                 ProceduralTextures.SandAlbedo,
                 ProceduralTextures.SandNormal,
-                new Color(1f, 0.97f, 0.9f),
-                0.32f,
-                0.04f,
-                new Vector2(48f, 48f));
+                new Color(0.94f, 0.90f, 0.80f),
+                0.22f,
+                0.03f,
+                new Vector2(56f, 56f));
+            if (sandFloor.HasProperty("_BumpScale"))
+                sandFloor.SetFloat("_BumpScale", 1.65f);
+            mr.sharedMaterial = sandFloor;
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
 
             ScatterInteriorFeatures(go.transform, heights, res, -half, step);
@@ -190,10 +193,12 @@ namespace UnderwaterDiving
             var sandMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.SandAlbedo,
                 ProceduralTextures.SandNormal,
-                new Color(1f, 0.98f, 0.92f),
-                0.34f,
-                0.05f,
-                new Vector2(10f, 4f));
+                new Color(0.95f, 0.91f, 0.82f),
+                0.24f,
+                0.04f,
+                new Vector2(14f, 6f));
+            if (sandMat.HasProperty("_BumpScale"))
+                sandMat.SetFloat("_BumpScale", 1.55f);
 
             const int segments = 14;
             float half = DiveWorldConfig.ShoreArcHalfWidth * 1.55f;

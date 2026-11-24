@@ -5,7 +5,7 @@ Shader "Underwater/DepthGrade"
         _MainTex ("Base (RGB)", 2D) = "white" {}
         _Tint ("Tint", Color) = (0.2, 0.55, 0.65, 1)
         _Contrast ("Contrast", Range(0.5, 1.5)) = 1.05
-        _Saturation ("Saturation", Range(0, 3)) = 2.5
+        _Saturation ("Saturation", Range(0, 3)) = 1.4
         _Vignette ("Vignette", Range(0, 1.5)) = 0.35
         _Absorb ("Red Absorb", Range(0, 1)) = 0.45
         _Depth ("Depth 01", Range(0, 1)) = 0

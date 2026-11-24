@@ -4,7 +4,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Active dive site + shared extents. Starting site is a Maldives-style
-    /// curved bay: bright sand, gentle turquoise walk-in, shops behind the waterline.
+    /// curved bay: bright textured sand, clear blue walk-in, shops behind the waterline.
     /// </summary>
     public static class DiveWorldConfig
     {

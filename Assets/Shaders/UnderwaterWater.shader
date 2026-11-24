@@ -2,7 +2,7 @@ Shader "Underwater/WaterSurface"
 {
     Properties
     {
-        _Color ("Tint", Color) = (0.15, 0.45, 0.55, 0.55)
+        _Color ("Tint", Color) = (0.22, 0.58, 0.72, 0.26)
         _MainTex ("Albedo", 2D) = "white" {}
         _BumpMap ("Normal", 2D) = "bump" {}
         _BumpScale ("Normal Scale", Float) = 1.4
@@ -76,10 +76,11 @@ Shader "Underwater/WaterSurface"
 
             float fres = saturate(_FresnelBias + pow(1.0 - saturate(dot(normalize(IN.viewDir), float3(0,0,1))), _FresnelPower));
             o.Albedo = c.rgb;
-            o.Alpha = saturate(c.a * lerp(0.35, 0.85, fres));
+            // Keep looking-down face very clear; fresnel only lifts edge opacity.
+            o.Alpha = saturate(c.a * lerp(0.55, 1.15, fres));
             o.Specular = 0.9;
             o.Gloss = 0.95;
-            o.Emission = c.rgb * fres * 0.08;
+            o.Emission = c.rgb * fres * 0.06;
         }
         ENDCG
     }

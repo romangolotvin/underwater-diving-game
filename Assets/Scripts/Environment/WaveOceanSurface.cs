@@ -89,8 +89,8 @@ namespace UnderwaterDiving
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             mr.receiveShadows = false;
 
-            // Maldives turquoise surface read from the beach.
-            surfaceMat = MakeWaterMaterial(new Color(0.12f, 0.72f, 0.78f, 0.48f));
+            // Clear blue-green sheet — transparent enough to read the sand below.
+            surfaceMat = MakeWaterMaterial(new Color(0.22f, 0.58f, 0.72f, 0.26f));
             mr.sharedMaterial = surfaceMat;
 
             // Underside facing down for when looking up from below.
@@ -101,7 +101,7 @@ namespace UnderwaterDiving
             umf.sharedMesh = mesh;
             var umr = under.AddComponent<MeshRenderer>();
             umr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            underMat = MakeWaterMaterial(new Color(0.06f, 0.48f, 0.58f, 0.38f));
+            underMat = MakeWaterMaterial(new Color(0.16f, 0.45f, 0.62f, 0.2f));
             umr.sharedMaterial = underMat;
 
             // No MeshCollider — WaterVolume owns the logical surface height so the diver can cross it.

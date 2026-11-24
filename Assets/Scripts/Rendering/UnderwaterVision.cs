@@ -4,13 +4,13 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Built-in pipeline color grade on the diver camera. No URP dependency.
-    /// Starting-beach look: scene-wide saturation ~+150% (2.5×), easing deeper.
+    /// Starting-beach look: soft pastel sat (~1.4×), easing cooler/deeper.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class UnderwaterVision : MonoBehaviour
     {
-        /// <summary>Neutral sat = 1. Beach target ≈ +150% → 2.5.</summary>
-        public const float BeachSaturationBoost = 2.5f;
+        /// <summary>Neutral sat = 1. Pastel beach boost (was 2.5 — too vivid).</summary>
+        public const float BeachSaturationBoost = 1.4f;
 
         Material postMat;
         float depth01;
@@ -59,17 +59,17 @@ namespace UnderwaterDiving
                 return;
             }
 
-            // Always grade: vivid beach/surface sat, cooler/desat with depth.
-            float sat = Mathf.Lerp(BeachSaturationBoost, 0.85f, depth01);
-            float contrast = Mathf.Lerp(1.08f, 0.95f, depth01);
+            // Always grade: soft pastel beach sat, cooler/desat with depth.
+            float sat = Mathf.Lerp(BeachSaturationBoost, 0.9f, depth01);
+            float contrast = Mathf.Lerp(1.02f, 0.96f, depth01);
 
             postMat.SetFloat("_Depth", depth01);
             postMat.SetColor("_Tint", Color.Lerp(
-                new Color(1f, 0.92f, 0.78f),
-                new Color(0.08f, 0.22f, 0.4f),
+                new Color(1f, 0.97f, 0.92f),
+                new Color(0.12f, 0.28f, 0.45f),
                 depth01));
-            postMat.SetFloat("_Absorb", Mathf.Lerp(0.05f, 0.75f, depth01));
-            postMat.SetFloat("_Vignette", Mathf.Lerp(0.12f, 0.7f, depth01));
+            postMat.SetFloat("_Absorb", Mathf.Lerp(0.03f, 0.7f, depth01));
+            postMat.SetFloat("_Vignette", Mathf.Lerp(0.08f, 0.65f, depth01));
             postMat.SetFloat("_Saturation", sat);
             postMat.SetFloat("_Contrast", contrast);
             Graphics.Blit(src, dest, postMat);

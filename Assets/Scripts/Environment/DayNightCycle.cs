@@ -50,7 +50,22 @@ namespace UnderwaterDiving
                 float elev = Mathf.Lerp(-8f, 68f, DayAmount);
                 float azim = Mathf.Lerp(200f, -20f, DayPhase);
                 sun.transform.rotation = Quaternion.Euler(elev, azim, 0f);
-                sun.color = Color.Lerp(new Color(0.4f, 0.5f, 0.78f), new Color(1f, 0.98f, 0.9f), DayAmount);
+                // Warm daylight sun against a blue sky (not turquoise fill light).
+                sun.color = Color.Lerp(new Color(0.42f, 0.52f, 0.85f), new Color(1f, 0.98f, 0.92f), DayAmount);
+            }
+
+            var sky = RenderSettings.skybox;
+            if (sky != null)
+            {
+                if (sky.HasProperty("_Exposure"))
+                    sky.SetFloat("_Exposure", Mathf.Lerp(0.3f, 1.35f, DayAmount));
+                if (sky.HasProperty("_SkyTint"))
+                {
+                    // Keep sky blue day and night; only dim via exposure.
+                    Color daySky = new Color(0.28f, 0.48f, 0.95f);
+                    Color nightSky = new Color(0.12f, 0.18f, 0.45f);
+                    sky.SetColor("_SkyTint", Color.Lerp(nightSky, daySky, DayAmount));
+                }
             }
         }
     }

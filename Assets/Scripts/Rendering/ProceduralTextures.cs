@@ -21,9 +21,9 @@ namespace UnderwaterDiving
         static Texture2D kelpAlbedo, kelpNormal;
         static Texture2D causticAlbedo;
 
-        // Bright Maldives white sand base (tinted further at spawn by OceanFloorBuilder).
-        public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.72f, 0.68f, 0.58f, 0.92f, 0.88f, 0.78f, 4.2f, 0.28f);
-        public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 9f, 0.55f);
+        // Grainy Maldives sand (albedo + normal) — not flat white; tinted further by OceanFloorBuilder.
+        public static Texture2D SandAlbedo => sandAlbedo ??= MakeSandAlbedo(512);
+        public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 16f, 1.25f);
         public static Texture2D RockAlbedo => rockAlbedo ??= MakeAlbedo(512, 0.22f, 0.24f, 0.26f, 0.35f, 0.36f, 0.34f, 2.4f, 0.55f);
         public static Texture2D RockNormal => rockNormal ??= MakeNormal(512, 5.5f, 1.1f);
         public static Texture2D SiltAlbedo => siltAlbedo ??= MakeAlbedo(512, 0.12f, 0.14f, 0.18f, 0.18f, 0.2f, 0.26f, 1.8f, 0.4f);
@@ -295,6 +295,49 @@ namespace UnderwaterDiving
             return tex;
         }
 
+        /// <summary>
+        /// Visible sand grain: warm beige base, darker mineral flecks, sparse shell chips.
+        /// Contrast is intentional so the floor never reads as flat white.
+        /// </summary>
+        static Texture2D MakeSandAlbedo(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "SandAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size;
+                    float v = y / (float)size;
+                    float dunes = Fbm(u * 3.2f, v * 3.2f, 4);
+                    float grain = Fbm(u * 28f + 9f, v * 28f + 3f, 3);
+                    float micro = Fbm(u * 64f + 41f, v * 64f + 17f, 2);
+                    float shell = Mathf.Pow(Fbm(u * 11f + 2f, v * 11f + 5f, 2), 4.5f);
+
+                    Color baseC = Color.Lerp(
+                        new Color(0.78f, 0.72f, 0.58f),
+                        new Color(0.94f, 0.90f, 0.78f),
+                        dunes);
+                    // Darker mineral grains so albedo has readable texture under bright sun.
+                    float fleck = Mathf.Lerp(0.72f, 1.08f, grain);
+                    fleck *= Mathf.Lerp(0.88f, 1.05f, micro);
+                    baseC *= fleck;
+                    // Sparse pale shell chips.
+                    baseC = Color.Lerp(baseC, new Color(0.98f, 0.95f, 0.88f), shell * 0.55f);
+                    px[x + y * size] = baseC;
+                }
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
         static Texture2D MakeWater(int size)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
@@ -311,8 +354,9 @@ namespace UnderwaterDiving
                 float u = x / (float)size, v = y / (float)size;
                 float w = Fbm(u * 6f, v * 6f, 4);
                 float r = Fbm(u * 14f + 3f, v * 14f, 3);
-                Color c = Color.Lerp(new Color(0.05f, 0.25f, 0.35f, 0.55f), new Color(0.2f, 0.55f, 0.65f, 0.4f), w);
-                c.a = Mathf.Lerp(0.35f, 0.65f, r);
+                // Lighter, more transparent water sheet (less murky teal).
+                Color c = Color.Lerp(new Color(0.18f, 0.42f, 0.58f, 0.28f), new Color(0.35f, 0.62f, 0.78f, 0.18f), w);
+                c.a = Mathf.Lerp(0.16f, 0.34f, r);
                 px[x + y * size] = c;
             }
             tex.SetPixels(px);

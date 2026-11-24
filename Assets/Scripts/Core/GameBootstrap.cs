@@ -55,19 +55,35 @@ namespace UnderwaterDiving
 
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(root, false);
-            // Bright Maldives noon — white sand / turquoise water read.
+            // Bright Maldives noon — warm sun under a blue sky.
             sunGo.transform.rotation = Quaternion.Euler(58f, -28f, 0f);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.8f;
-            sun.intensity = 1.55f;
-            sun.color = new Color(1f, 0.98f, 0.9f);
+            sun.intensity = 1.45f;
+            sun.color = new Color(1f, 0.98f, 0.92f);
 
-            RenderSettings.skybox = null;
-            RenderSettings.subtractiveShadowColor = new Color(0.35f, 0.55f, 0.7f);
+            // Procedural blue sky with sun disk (not flat turquoise clear-color).
+            var skyShader = Shader.Find("Skybox/Procedural");
+            if (skyShader != null)
+            {
+                var sky = new Material(skyShader) { name = "MaldivesBlueSky" };
+                sky.SetColor("_SkyTint", new Color(0.28f, 0.48f, 0.95f));
+                sky.SetColor("_GroundColor", new Color(0.78f, 0.72f, 0.58f));
+                sky.SetFloat("_Exposure", 1.3f);
+                sky.SetFloat("_SunSize", 0.045f);
+                sky.SetFloat("_SunSizeConvergence", 6f);
+                sky.SetFloat("_AtmosphereThickness", 1.05f);
+                RenderSettings.skybox = sky;
+            }
+            else
+            {
+                RenderSettings.skybox = null;
+            }
+            RenderSettings.subtractiveShadowColor = new Color(0.4f, 0.55f, 0.75f);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.72f, 0.8f, 0.88f);
+            RenderSettings.ambientLight = new Color(0.58f, 0.70f, 0.88f);
 
             // Starting location: sunny shore walk-in (OpenOcean site with beach geometry).
             DiveWorldConfig.SetActiveSite(DiveWorldConfig.DiveSite.OpenOcean);
@@ -172,6 +188,10 @@ namespace UnderwaterDiving
             cam.fieldOfView = 72f;
             cam.allowMSAA = true;
             cam.allowHDR = true;
+            cam.clearFlags = RenderSettings.skybox != null
+                ? CameraClearFlags.Skybox
+                : CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.45f, 0.65f, 0.92f);
             camGo.AddComponent<AudioListener>();
             UnderwaterVision.Attach(cam);
 
