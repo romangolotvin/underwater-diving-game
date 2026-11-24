@@ -30,6 +30,7 @@ namespace UnderwaterDiving
 
             var hud = canvasGo.AddComponent<DiveHud>();
             hud.Build(canvasGo.transform);
+            WorldMapPanel.Attach(canvasGo.transform);
             return hud;
         }
 
