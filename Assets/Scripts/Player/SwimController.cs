@@ -29,6 +29,8 @@ namespace UnderwaterDiving
         [SerializeField] float maxSprintSpeed = 11f;
         [SerializeField] float aboveWaterMaxSpeed = 6.5f;
         [SerializeField] float jumpForce = 6.5f;
+        [Tooltip("Below this submersion, WASD uses MovePosition (PhysX cannot cancel). Above = swim AddForce.")]
+        [SerializeField] float shoreMoveSubmersionMax = 0.55f;
 
         [Header("Buoyancy & Drag")]
         [SerializeField] float playerHeight = 1.8f;
@@ -59,7 +61,6 @@ namespace UnderwaterDiving
         bool jumpQueued;
         bool cursorLocked = true;
         int lockAcquiredFrame = -1;
-        bool loggedMoveOnce;
         DiverSuit suit;
         static readonly List<RaycastResult> UiRaycastBuffer = new List<RaycastResult>(16);
 
@@ -476,90 +477,77 @@ namespace UnderwaterDiving
             if (suit != null)
                 forceMul *= suit.SwimSpeedMultiplier;
 
-            if (IsUnderwater)
-            {
-                Vector3 forward = cameraPivot != null ? cameraPivot.forward : transform.forward;
-                Vector3 right = cameraPivot != null ? cameraPivot.right : transform.right;
-                Vector3 wish = (forward * smoothedMove.z + right * smoothedMove.x + Vector3.up * smoothedMove.y);
-                if (wish.sqrMagnitude > 1f)
-                    wish.Normalize();
-
-                body.AddForce(wish * swimForce * forceMul, ForceMode.Acceleration);
-
-                // Extra dedicated vertical authority (Space / Ctrl already in SampleMoveInput.y).
-                if (Mathf.Abs(smoothedMove.y) > 0.01f)
-                    body.AddForce(Vector3.up * smoothedMove.y * verticalForce * 0.35f * forceMul, ForceMode.Acceleration);
-
-                LogMoveOnce(raw, wish * swimForce * forceMul);
-            }
+            // Beach + wade: PhysX contact on the coarse OceanFloor MeshCollider cancels
+            // AddForce / linearVelocity every step. MovePosition is the authoritative XZ write.
+            // Only use swim forces once meaningfully submerged.
+            if (Submersion < shoreMoveSubmersionMax)
+                ApplyShoreMove(raw, forceMul);
             else
-            {
-                // Shore / surface: RAW input (no SmoothDamp lag) + direct transform displace.
-                // PhysX contact solver can zero linearVelocity on MeshCollider contact every
-                // FixedUpdate — position writes cannot be killed by friction.
-                Vector3 flat = new Vector3(raw.x, 0f, raw.z);
-                float inputMag = Mathf.Clamp01(flat.magnitude);
-                if (flat.sqrMagnitude > 1e-6f)
-                    flat.Normalize();
-                else
-                    flat = Vector3.zero;
-
-                Vector3 world = transform.TransformDirection(flat);
-                float speed = aboveWaterMaxSpeed * forceMul * inputMag;
-                Vector3 wishVel = world * speed;
-                float dt = Time.fixedDeltaTime;
-
-                Vector3 p = body.position;
-                p.x += wishVel.x * dt;
-                p.z += wishVel.z * dt;
-
-                if (capsule == null)
-                    capsule = GetComponent<CapsuleCollider>();
-                float half = capsule != null ? Mathf.Max(0.05f, capsule.height * 0.5f) : 0.9f;
-                const float skin = 0.12f;
-
-                // Keep feet on sand while sliding XZ — ignore near-vertical wall hits.
-                bool grounded = false;
-                Vector3 rayOrigin = new Vector3(p.x, p.y + 2.5f, p.z);
-                if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit ground, 6f, ~0, QueryTriggerInteraction.Ignore)
-                    && Vector3.Dot(ground.normal, Vector3.up) > 0.35f)
-                {
-                    p.y = ground.point.y + half + skin;
-                    grounded = true;
-                }
-
-                body.position = p;
-                transform.position = p;
-
-                float yVel = body.linearVelocity.y;
-                if (jumpQueued)
-                {
-                    jumpQueued = false;
-                    if (yVel < jumpForce)
-                        yVel = jumpForce;
-                }
-                else if (grounded && yVel < 0f)
-                {
-                    yVel = 0f;
-                }
-
-                // Also set velocity so jump/gravity feel coherent; displace already moved XZ.
-                body.linearVelocity = new Vector3(wishVel.x, yVel, wishVel.z);
-                body.WakeUp();
-
-                LogMoveOnce(raw, wishVel);
-            }
+                ApplySwimMove(forceMul);
         }
 
-        void LogMoveOnce(Vector3 input, Vector3 applied)
+        void ApplySwimMove(float forceMul)
         {
-            if (loggedMoveOnce || input.sqrMagnitude < 0.01f)
-                return;
-            loggedMoveOnce = true;
-            Debug.Log(
-                $"[Swim] WASD applied input={input} vel={body.linearVelocity} " +
-                $"applied={applied} blocked={GameUi.BlocksGameplay} underwater={IsUnderwater} " +
-                $"pos={transform.position}");
+            Vector3 forward = cameraPivot != null ? cameraPivot.forward : transform.forward;
+            Vector3 right = cameraPivot != null ? cameraPivot.right : transform.right;
+            Vector3 wish = (forward * smoothedMove.z + right * smoothedMove.x + Vector3.up * smoothedMove.y);
+            if (wish.sqrMagnitude > 1f)
+                wish.Normalize();
+
+            body.AddForce(wish * swimForce * forceMul, ForceMode.Acceleration);
+
+            if (Mathf.Abs(smoothedMove.y) > 0.01f)
+                body.AddForce(Vector3.up * smoothedMove.y * verticalForce * 0.35f * forceMul, ForceMode.Acceleration);
+        }
+
+        void ApplyShoreMove(Vector3 raw, float forceMul)
+        {
+            Vector3 flat = new Vector3(raw.x, 0f, raw.z);
+            float inputMag = Mathf.Clamp01(flat.magnitude);
+            if (flat.sqrMagnitude > 1e-6f)
+                flat.Normalize();
+            else
+                flat = Vector3.zero;
+
+            Vector3 world = transform.TransformDirection(flat);
+            float speed = aboveWaterMaxSpeed * forceMul * inputMag;
+            Vector3 wishVel = world * speed;
+            float dt = Time.fixedDeltaTime;
+
+            Vector3 p = body.position;
+            p.x += wishVel.x * dt;
+            p.z += wishVel.z * dt;
+
+            if (capsule == null)
+                capsule = GetComponent<CapsuleCollider>();
+            float half = capsule != null ? Mathf.Max(0.05f, capsule.height * 0.5f) : 0.9f;
+            const float skin = 0.12f;
+
+            bool grounded = false;
+            Vector3 rayOrigin = new Vector3(p.x, p.y + 2.5f, p.z);
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit ground, 6f, ~0, QueryTriggerInteraction.Ignore)
+                && Vector3.Dot(ground.normal, Vector3.up) > 0.35f)
+            {
+                p.y = ground.point.y + half + skin;
+                grounded = true;
+            }
+
+            body.MovePosition(p);
+
+            float yVel = body.linearVelocity.y;
+            if (jumpQueued)
+            {
+                jumpQueued = false;
+                if (yVel < jumpForce)
+                    yVel = jumpForce;
+            }
+            else if (grounded && yVel < 0f)
+            {
+                yVel = 0f;
+            }
+
+            body.linearVelocity = new Vector3(wishVel.x, yVel, wishVel.z);
+            body.WakeUp();
         }
 
         void ClampMaxSpeed()
