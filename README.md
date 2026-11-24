@@ -1,29 +1,24 @@
 # Underwater Diving Game
 
-Unity 6 first-person underwater dive prototype — open ocean swimming.
+Unity 6 first-person underwater dive prototype — open ocean swimming, hunting, and trading.
 
 **Editor:** `6000.0.85f1` (Unity 6)
 
 ## Prototype includes (current)
 
 - First-person swimming (buoyancy, drag, look, ascend/descend)
-- Open seabed with depth variation (shallow → mid → deep); **no rock-wall boundary**
+- Open seabed with depth zones (Shallow → Twilight → Abyss); **no rock-wall boundary**
 - Soft invisible limit + fog fade only
-- Textured ocean floor, rocks, shallow coral, water surface, suit materials (albedo + normals)
-- Underwater atmosphere (fog/light by depth)
+- Textured surfaces everywhere (albedo + normals): floor, rocks, coral, kelp, suit, gun, fish, artifacts, shops
+- Underwater atmosphere (fog/light by depth) + **day/night lighting** (no clock / countdown UI)
 - Layered ocean ambience + swim bubbles
-- Minimal HUD: depth (m) and air (s) only — no meta/prompt text
+- Speargun with line: upgrades for **line length**, **harpoon edge**, **harpoon mass** (pulls you toward the catch / down)
+- Fish by zone: reef fish, jack, grouper, **moray**, **turtle**, **ray**, hostile **barracuda** (catchable)
+- Artifacts to collect and sell
+- Economy: credits, catch bag, **Harbor Market** (sell + gear upgrades) and **Outfitter** (decorations)
+- Minimal HUD: depth, zone, air, credits, catch — no meta/prompt text
 
-**Not in this build yet:** speargun, fish, artifacts, mythical creatures (Kraken / Megalodon), economy — per Ro, later.
-
-## How to run
-
-1. Install **Unity Hub** and editor **6000.0.85f1** (or a close Unity 6 build).
-2. Hub → **Open** → select this folder (`UnderwaterDiving`).
-3. Open scene `Assets/Scenes/Ocean.unity` (or press Play — `GameBootstrap` auto-builds the world).
-4. Click Game view, then swim.
-
-### Controls
+## Controls
 
 | Input | Action |
 |-------|--------|
@@ -33,8 +28,22 @@ Unity 6 first-person underwater dive prototype — open ocean swimming.
 | Ctrl / Q / C | Descend |
 | Shift | Sprint |
 | Scroll | Fine vertical trim |
-| Esc | Unlock cursor |
-| LMB | Lock cursor |
+| LMB | Fire speargun (underwater) / lock cursor |
+| RMB | Reel line |
+| F | Open nearby shop (Harbor Market or Outfitter) |
+| Esc | Unlock cursor / close shop |
+
+## Shops
+
+- **Harbor Market** (east pontoon): sell catch & artifacts; upgrade air, depth suit, fins, buoyancy vest, dive lamp, catch bag, speargun line / edge / mass.
+- **Outfitter** (west pontoon): buy and equip decorations (wrist, paint, charm, fins, mask).
+
+## How to run
+
+1. Install **Unity Hub** and editor **6000.0.85f1** (or a close Unity 6 build).
+2. Hub → **Open** → select this folder (`UnderwaterDiving`).
+3. Open scene `Assets/Scenes/Ocean.unity` (or press Play — `GameBootstrap` auto-builds the world).
+4. Click Game view, then swim. Surface near the pontoons to trade.
 
 ## Windows build
 

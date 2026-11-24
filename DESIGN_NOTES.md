@@ -20,10 +20,16 @@ Expand the game world beyond a small map. Add a continuation with greater depth 
 
 ## 3. Mythical creatures
 
-Add mythical / apex encounters:
+Add mythical / apex encounters (still later):
 
 - **Kraken**
 - **Megalodon**
+
+## Day / night (Ro)
+
+- Day/night lighting is wanted for atmosphere.
+- **Do not** put a timer / countdown / clock in the HUD for when day or night starts — that has no point in this game.
+- Cycle can drift naturally in the background; player only sees light and mood change.
 
 ## Quality bar
 

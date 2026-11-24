@@ -3,7 +3,7 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Depth-based fog/light. Distance fog doubles as the soft world edge (no rock walls).
+    /// Depth-based fog/light plus day/night tint. Distance fog doubles as soft world edge.
     /// </summary>
     public class UnderwaterAtmosphere : MonoBehaviour
     {
@@ -25,8 +25,8 @@ namespace UnderwaterDiving
             var swim = SwimController.Instance;
             float depth = swim != null ? swim.CurrentDepth : 0f;
             bool under = swim != null && swim.IsUnderwater;
+            float day = DayNightCycle.Instance != null ? DayNightCycle.Instance.DayAmount : 1f;
 
-            // Soft edge: thicken fog when near invisible boundary so the open ocean fades out.
             float edgeFog = 0f;
             if (swim != null)
             {
@@ -41,10 +41,12 @@ namespace UnderwaterDiving
 
             if (!under)
             {
-                fog = new Color(0.55f, 0.72f, 0.88f);
+                Color dayFog = new Color(0.55f, 0.72f, 0.88f);
+                Color nightFog = new Color(0.08f, 0.12f, 0.22f);
+                fog = Color.Lerp(nightFog, dayFog, day);
                 density = Mathf.Lerp(0.0035f, 0.012f, edgeFog);
-                ambient = new Color(0.58f, 0.65f, 0.72f);
-                sunMul = 1.2f;
+                ambient = Color.Lerp(new Color(0.12f, 0.16f, 0.28f), new Color(0.58f, 0.65f, 0.72f), day);
+                sunMul = Mathf.Lerp(0.15f, 1.2f, day);
             }
             else
             {
@@ -72,6 +74,11 @@ namespace UnderwaterDiving
                         sunMul = 0.14f;
                         break;
                 }
+
+                // Night darkens upper water more than the abyss.
+                fog = Color.Lerp(fog * 0.45f, fog, Mathf.Lerp(0.55f, 1f, day));
+                ambient *= Mathf.Lerp(0.45f, 1f, day);
+                sunMul *= Mathf.Lerp(0.25f, 1f, day);
                 density = Mathf.Lerp(density, density + 0.04f, edgeFog);
             }
 
@@ -82,7 +89,10 @@ namespace UnderwaterDiving
 
             if (sun != null)
             {
-                sun.color = Color.Lerp(new Color(1f, 0.96f, 0.88f), new Color(0.45f, 0.6f, 0.85f), under ? 0.85f : 0f);
+                Color daySun = new Color(1f, 0.96f, 0.88f);
+                Color nightSun = new Color(0.35f, 0.45f, 0.75f);
+                Color baseSun = Color.Lerp(nightSun, daySun, day);
+                sun.color = Color.Lerp(baseSun, new Color(0.45f, 0.6f, 0.85f), under ? 0.55f : 0f);
                 sun.intensity = Mathf.Lerp(sun.intensity, sunMul, Time.deltaTime * 2.5f);
             }
 

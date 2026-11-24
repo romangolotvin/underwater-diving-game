@@ -98,6 +98,8 @@ namespace UnderwaterDiving
 
         void Update()
         {
+            if (GameUi.BlocksGameplay)
+                return;
             HandleCursor();
             if (cursorLocked)
                 HandleLook();
@@ -115,7 +117,8 @@ namespace UnderwaterDiving
 
             ApplyBuoyancy(water);
             ApplyDrag();
-            ApplyThrust();
+            if (!GameUi.BlocksGameplay)
+                ApplyThrust();
             ClampMaxSpeed();
             SoftFloorCeiling(water);
         }
@@ -124,7 +127,7 @@ namespace UnderwaterDiving
         {
             if (Input.GetKeyDown(KeyCode.Escape))
                 LockCursor(false);
-            if (Input.GetMouseButtonDown(0) && !cursorLocked)
+            if (Input.GetMouseButtonDown(0) && !cursorLocked && !GameUi.BlocksGameplay)
                 LockCursor(true);
         }
 
@@ -157,8 +160,9 @@ namespace UnderwaterDiving
 
             // Partial gravity cancel + residual bias so the diver slowly sinks unless kicking up.
             float gravityMag = Physics.gravity.magnitude;
+            float vest = suit != null ? suit.BuoyancyAssist : 0f;
             Vector3 buoyancy = Vector3.up * (gravityMag * Submersion * water.Density * buoyancyStrength / 9.81f);
-            buoyancy += Vector3.up * (neutralBuoyancyBias * Submersion * playerMass);
+            buoyancy += Vector3.up * ((neutralBuoyancyBias + vest) * Submersion * playerMass);
 
             // Soft surface slap: bleed upward velocity when crossing the surface.
             if (Submersion < 0.45f && body.linearVelocity.y > 0f)

@@ -14,6 +14,10 @@ namespace UnderwaterDiving
         static Texture2D coralAlbedo, coralNormal;
         static Texture2D suitAlbedo, suitNormal;
         static Texture2D waterAlbedo;
+        static Texture2D fishScaleAlbedo, fishScaleNormal;
+        static Texture2D shellAlbedo, shellNormal;
+        static Texture2D rayAlbedo, rayNormal;
+        static Texture2D ropeAlbedo;
 
         public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.42f, 0.38f, 0.28f, 0.55f, 0.48f, 0.34f, 4.2f, 0.35f);
         public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 9f, 0.55f);
@@ -26,6 +30,13 @@ namespace UnderwaterDiving
         public static Texture2D SuitAlbedo => suitAlbedo ??= MakeSuitAlbedo(512);
         public static Texture2D SuitNormal => suitNormal ??= MakeNormal(512, 4f, 0.35f);
         public static Texture2D WaterAlbedo => waterAlbedo ??= MakeWater(512);
+        public static Texture2D FishScaleAlbedo => fishScaleAlbedo ??= MakeFishScale(512);
+        public static Texture2D FishScaleNormal => fishScaleNormal ??= MakeNormal(512, 11f, 0.9f);
+        public static Texture2D ShellAlbedo => shellAlbedo ??= MakeShell(512);
+        public static Texture2D ShellNormal => shellNormal ??= MakeNormal(512, 6f, 1.2f);
+        public static Texture2D RayAlbedo => rayAlbedo ??= MakeRaySkin(512);
+        public static Texture2D RayNormal => rayNormal ??= MakeNormal(512, 4.5f, 0.55f);
+        public static Texture2D RopeAlbedo => ropeAlbedo ??= MakeRope(256);
 
         public static Material MakeLit(Texture2D albedo, Texture2D normal, Color tint, float gloss, float metal, Vector2 tiling)
         {
@@ -153,6 +164,110 @@ namespace UnderwaterDiving
                 if (Mathf.Abs((v * 8f) % 1f - 0.5f) < 0.06f)
                     baseC = Color.Lerp(baseC, new Color(0.7f, 0.55f, 0.15f), 0.65f);
                 px[x + y * size] = baseC;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeFishScale(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "FishScaleAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float row = Mathf.Floor(v * 28f);
+                float ox = (row % 2f) * 0.5f;
+                float sx = Mathf.Abs(((u * 28f + ox) % 1f) - 0.5f);
+                float sy = Mathf.Abs(((v * 28f) % 1f) - 0.5f);
+                float scale = Mathf.Clamp01(1f - (sx * sx + sy * sy * 1.4f) * 4f);
+                float n = Fbm(u * 5f, v * 5f, 4);
+                Color c = Color.Lerp(new Color(0.18f, 0.28f, 0.32f), new Color(0.55f, 0.7f, 0.65f), scale);
+                c = Color.Lerp(c, c * (0.7f + n * 0.5f), 0.45f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeShell(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "ShellAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float plate = Mathf.Abs(Mathf.Sin(u * 9f) * Mathf.Cos(v * 7f));
+                float n = Fbm(u * 4f, v * 4f, 4);
+                Color c = Color.Lerp(new Color(0.25f, 0.38f, 0.22f), new Color(0.55f, 0.62f, 0.35f), plate);
+                c = Color.Lerp(c, new Color(0.4f, 0.32f, 0.18f), n * 0.35f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeRaySkin(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "RayAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float spots = Mathf.Pow(Fbm(u * 10f, v * 10f, 3), 2.2f);
+                float n = Fbm(u * 3f, v * 3f, 4);
+                Color c = Color.Lerp(new Color(0.28f, 0.26f, 0.32f), new Color(0.55f, 0.5f, 0.48f), n);
+                c = Color.Lerp(c, new Color(0.75f, 0.72f, 0.68f), spots * 0.65f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeRope(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "RopeAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 4
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float twist = Mathf.Abs(Mathf.Sin((u + v) * 40f));
+                float n = Fbm(u * 8f, v * 8f, 3);
+                Color c = Color.Lerp(new Color(0.45f, 0.38f, 0.22f), new Color(0.7f, 0.62f, 0.4f), twist);
+                c *= 0.85f + n * 0.25f;
+                px[x + y * size] = c;
             }
             tex.SetPixels(px);
             tex.Apply(true, true);

@@ -3,7 +3,7 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Builds the playable swim + open ocean prototype at runtime.
+    /// Builds the playable ocean dive prototype at runtime.
     /// </summary>
     public class GameBootstrap : MonoBehaviour
     {
@@ -32,7 +32,6 @@ namespace UnderwaterDiving
 
         void BuildWorld()
         {
-            // Clear default scene camera/light clutter if present.
             foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
             {
                 if (cam.CompareTag("MainCamera") || cam.gameObject.name.Contains("Main Camera"))
@@ -61,20 +60,37 @@ namespace UnderwaterDiving
             sun.intensity = 1.15f;
             sun.color = new Color(1f, 0.96f, 0.88f);
 
-            // Soft skylight fill (open ocean, not a boxed map).
             RenderSettings.skybox = null;
             RenderSettings.subtractiveShadowColor = new Color(0.15f, 0.25f, 0.35f);
 
             OceanFloorBuilder.Build(root);
             WaterSurfaceVisual.Create(root);
+            DayNightCycle.Create(root, sun);
             UnderwaterAtmosphere.Create(root, sun);
             OceanAmbience.Create(root);
 
-            CreatePlayer(root);
-            DiveHud.Create();
+            // Economy services on bootstrap object.
+            gameObject.AddComponent<Wallet>();
+            gameObject.AddComponent<Inventory>();
+            gameObject.AddComponent<ShopProgress>();
+            gameObject.AddComponent<CosmeticLocker>();
 
-            // Distant horizon disc — textured water continuation, not a rock wall.
+            CreatePlayer(root);
+
+            // Zone flavour + life + loot after floor collider exists.
+            DepthZoneVisuals.Build(root);
+            FishSchoolSpawner.Create(root);
+            ArtifactSpawner.Create(root);
+            GearMarket.Create(root);
+            DecorShop.Create(root);
+
+            DiveHud.Create();
             CreateHorizonCard(root);
+
+            if (ShopProgress.Instance != null)
+                ShopProgress.Instance.ApplyToPlayer();
+            if (CosmeticLocker.Instance != null)
+                CosmeticLocker.Instance.ApplyVisuals();
         }
 
         void CreatePlayer(Transform root)
@@ -95,7 +111,6 @@ namespace UnderwaterDiving
             col.radius = 0.35f;
             col.center = new Vector3(0f, 0f, 0f);
 
-            // Visible body (textured suit) — camera sits at eye height.
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             body.name = "SuitBody";
             Destroy(body.GetComponent<CapsuleCollider>());
@@ -141,20 +156,23 @@ namespace UnderwaterDiving
             cam.allowHDR = true;
             camGo.AddComponent<AudioListener>();
 
-            // Hide own head/suit from FP camera
             body.GetComponent<MeshRenderer>().enabled = false;
             tank.GetComponent<MeshRenderer>().enabled = false;
 
             player.AddComponent<DiverSuit>();
+            var look = player.AddComponent<DiverLook>();
+            look.Bind(camPivot);
             var swim = player.AddComponent<SwimController>();
             swim.SetCameraPivot(camPivot);
+
+            var gun = player.AddComponent<Speargun>();
+            gun.Bind(camPivot);
 
             BubbleParticles.CreateAroundPlayer(player.transform);
         }
 
         void CreateHorizonCard(Transform root)
         {
-            // Large textured seabed skirt beyond soft boundary — open fade, not a wall.
             var skirt = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             skirt.name = "HorizonSeabed";
             Destroy(skirt.GetComponent<Collider>());
@@ -171,5 +189,4 @@ namespace UnderwaterDiving
                 new Vector2(80f, 80f));
         }
     }
-
 }
