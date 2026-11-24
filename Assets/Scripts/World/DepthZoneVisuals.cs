@@ -14,10 +14,10 @@ namespace UnderwaterDiving
 
             var seaweedMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.2f, 0.55f, 0.32f), 0.3f, 0.05f, new Vector2(1f, 2.5f));
+                new Color(0.18f, 0.72f, 0.38f), 0.34f, 0.05f, new Vector2(1f, 2.5f));
             var kelpMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.15f, 0.45f, 0.28f), 0.25f, 0.05f, new Vector2(1f, 3f));
+                new Color(0.12f, 0.58f, 0.32f), 0.28f, 0.05f, new Vector2(1f, 3f));
             var deepMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.SiltAlbedo, ProceduralTextures.SiltNormal,
                 Color.white, 0.08f, 0.04f, new Vector2(2f, 2f));
@@ -39,7 +39,7 @@ namespace UnderwaterDiving
             }
 
             // Extra seaweed around the entire soft-boundary ring (not one cove).
-            const int ringWeed = 90;
+            const int ringWeed = 120;
             for (int i = 0; i < ringWeed; i++)
             {
                 float a = (i + (float)rng.NextDouble()) / ringWeed;

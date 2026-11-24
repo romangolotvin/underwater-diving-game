@@ -17,10 +17,10 @@ namespace UnderwaterDiving
                 Color.white, 0.14f, 0.08f, new Vector2(2.2f, 2.2f));
             var coralMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(1f, 0.55f, 0.45f), 0.38f, 0.06f, new Vector2(1.3f, 1.3f));
+                new Color(1f, 0.42f, 0.32f), 0.42f, 0.06f, new Vector2(1.3f, 1.3f));
             var coralMatB = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.35f, 0.7f, 0.85f), 0.34f, 0.05f, new Vector2(1.1f, 1.1f));
+                new Color(0.25f, 0.78f, 0.92f), 0.38f, 0.05f, new Vector2(1.1f, 1.1f));
             var woodMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
                 new Color(0.55f, 0.38f, 0.22f), 0.2f, 0.12f, new Vector2(1.5f, 1.5f));
@@ -38,11 +38,11 @@ namespace UnderwaterDiving
             var rng = new System.Random(20261124);
 
             // Landmark structures evenly around the full swimable ring.
-            const int structureCount = 36;
+            const int structureCount = 52;
             for (int i = 0; i < structureCount; i++)
             {
                 float a = (i + 0.5f) / structureCount;
-                float frac = 0.86f + (float)(rng.NextDouble() * 0.1);
+                float frac = 0.84f + (float)(rng.NextDouble() * 0.14);
                 if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
                     continue;
 
@@ -58,11 +58,11 @@ namespace UnderwaterDiving
             }
 
             // Dense prop scatter on the same ring (coral heads, barrels, rubble).
-            const int propCount = 96;
+            const int propCount = 140;
             for (int i = 0; i < propCount; i++)
             {
                 float a = (i + (float)rng.NextDouble()) / propCount;
-                float frac = 0.8f + (float)(rng.NextDouble() * 0.16);
+                float frac = 0.78f + (float)(rng.NextDouble() * 0.2);
                 if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
                     continue;
                 if (depth < 1.0f)
@@ -74,6 +74,25 @@ namespace UnderwaterDiving
                     SpawnBarrel(props, floor, woodMat, rng);
                 else
                     SpawnRubble(props, floor, rockMat, rng);
+            }
+
+            // Mid-shelf band so the swimable perimeter feels filled, not only the outer ring.
+            const int midBand = 28;
+            for (int i = 0; i < midBand; i++)
+            {
+                float a = (i + 0.21f) / midBand;
+                float frac = 0.48f + (float)(rng.NextDouble() * 0.28);
+                if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
+                    continue;
+                if (depth < 1.2f)
+                    continue;
+
+                if (rng.NextDouble() < 0.5)
+                    SpawnRockStack(structures, floor, depth, rockMat, rng);
+                else if (rng.NextDouble() < 0.55)
+                    SpawnReefTower(structures, floor, depth, rockMat, coralMat, rng);
+                else
+                    SpawnCoralProp(props, floor, depth, coralMatB, rng);
             }
 
             // Horizon cloud puffs — full 360° so no empty sky quadrant.

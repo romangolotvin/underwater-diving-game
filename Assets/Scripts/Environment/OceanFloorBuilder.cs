@@ -3,8 +3,8 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Maldives-style coastal seabed: curved bay shoreline, short turquoise shallows,
-    /// headland reef barriers on the flanks, soft shelf farther offshore.
+    /// Maldives-style coastal seabed: curved bay shoreline, gentle Turkey-like walk-in,
+    /// organic headland reef/rock barriers on the flanks, soft shelf farther offshore.
     /// </summary>
     public static class OceanFloorBuilder
     {
@@ -87,8 +87,9 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Soft beach → short turquoise shelf. Dry sand south of the curved waterline;
-        /// life-depth within ~NearshoreShallowDistance; ~20 m only after ~1.5 km.
+        /// Soft beach → gradual turquoise shelf (Turkey-like ramp, no cliff).
+        /// Dry sand south of the curved waterline; ~5 m by NearshoreShallowDistance;
+        /// ~20 m only after ~1.5 km.
         /// </summary>
         static float SampleFloorY(float x, float z)
         {
@@ -108,29 +109,37 @@ namespace UnderwaterDiving
                 float t = Mathf.InverseLerp(-140f, 0f, offshore);
                 shelfY = Mathf.Lerp(2.6f, 0.05f, SmoothStep(0f, 1f, t));
             }
+            else if (offshore < 55f)
+            {
+                // First steps into water — ankle/knee depth only, no ledge.
+                float t = SmoothStep(0f, 1f, offshore / 55f);
+                shelfY = Mathf.Lerp(0.05f, -1.35f, t);
+            }
             else if (offshore < near)
             {
-                // Short Maldives shallows — turquoise depth arrives quickly.
-                float t = SmoothStep(0f, 1f, offshore / near);
-                shelfY = Mathf.Lerp(0.05f, -4.8f, t);
+                // Long gentle shallows — depth grows slowly like a Turkey beach entry.
+                float t = SmoothStep(0f, 1f, (offshore - 55f) / (near - 55f));
+                shelfY = Mathf.Lerp(-1.35f, -5.2f, t);
             }
             else if (offshore < DiveWorldConfig.CoastalShelfDistance)
             {
                 float t = SmoothStep(0f, 1f,
                     (offshore - near) / (DiveWorldConfig.CoastalShelfDistance - near));
-                shelfY = Mathf.Lerp(-4.8f, -DiveWorldConfig.CoastalShelfDepth, t);
+                shelfY = Mathf.Lerp(-5.2f, -DiveWorldConfig.CoastalShelfDepth, t);
             }
             else
             {
                 shelfY = -DiveWorldConfig.CoastalShelfDepth;
             }
 
-            // Gentle noise — stronger only well offshore (still no cliffs).
+            // Soft noise — keep nearshore very calm so the walk-in never cliffs.
             float noiseAmp = offshore < 0f
-                ? 0.22f
-                : Mathf.Lerp(0.28f, 2.2f, Mathf.Clamp01(offshore / 900f));
+                ? 0.18f
+                : offshore < near
+                    ? Mathf.Lerp(0.14f, 0.55f, Mathf.Clamp01(offshore / near))
+                    : Mathf.Lerp(0.55f, 2.2f, Mathf.Clamp01((offshore - near) / 900f));
             shelfY += (Fbm(x * 0.011f, z * 0.011f, 3) - 0.5f) * noiseAmp;
-            shelfY += (Fbm(x * 0.04f, z * 0.04f, 2) - 0.5f) * (noiseAmp * 0.35f);
+            shelfY += (Fbm(x * 0.04f, z * 0.04f, 2) - 0.5f) * (noiseAmp * 0.3f);
 
             // Deep basins only far from shore.
             if (offshore > 1000f)
@@ -206,8 +215,8 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Headland rock/reef barriers: block swimming left/right along the shore,
-        /// leave the center channel open into depth.
+        /// Organic headland reefs/rocks on the bay flanks — boulder piles, not flat walls.
+        /// Blocks swimming left/right along the shore; center channel stays open into depth.
         /// </summary>
         static void BuildShoreBarriers(Transform parent)
         {
@@ -216,71 +225,126 @@ namespace UnderwaterDiving
 
             var rockMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
-                new Color(0.75f, 0.72f, 0.68f), 0.18f, 0.08f, new Vector2(2.2f, 2.2f));
+                new Color(0.78f, 0.74f, 0.68f), 0.18f, 0.08f, new Vector2(2.2f, 2.2f));
             var coralMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.85f, 0.55f, 0.45f), 0.4f, 0.06f, new Vector2(1.4f, 1.4f));
+                new Color(0.95f, 0.48f, 0.38f), 0.42f, 0.06f, new Vector2(1.4f, 1.4f));
+            var coralMatB = ProceduralTextures.MakeLit(
+                ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
+                new Color(0.35f, 0.78f, 0.72f), 0.4f, 0.05f, new Vector2(1.2f, 1.2f));
 
-            BuildHeadland(root.transform, -1f, rockMat, coralMat);
-            BuildHeadland(root.transform, 1f, rockMat, coralMat);
+            BuildHeadland(root.transform, -1f, rockMat, coralMat, coralMatB);
+            BuildHeadland(root.transform, 1f, rockMat, coralMat, coralMatB);
         }
 
-        static void BuildHeadland(Transform parent, float side, Material rockMat, Material coralMat)
+        static void BuildHeadland(Transform parent, float side, Material rockMat, Material coralMat, Material coralMatB)
         {
             float channel = DiveWorldConfig.ShoreChannelHalfWidth;
             float half = DiveWorldConfig.ShoreArcHalfWidth;
             var rng = new System.Random(side < 0f ? 4411 : 5522);
 
-            // Chain of colliding reef blocks from the beach face into shallow water.
-            for (int i = 0; i < 18; i++)
+            // Organic boulder clusters along each headland (sphere/capsule/tilted rock).
+            const int clusters = 14;
+            for (int i = 0; i < clusters; i++)
             {
-                float along = i / 17f;
-                float xInner = side * Mathf.Lerp(channel + 4f, half + 8f, along * 0.35f + 0.15f);
-                float xOuter = side * Mathf.Lerp(half * 0.75f, half + 28f, along);
-                float x = Mathf.Lerp(xInner, xOuter, 0.45f + (float)rng.NextDouble() * 0.35f);
+                float along = i / (float)(clusters - 1);
+                float xInner = side * Mathf.Lerp(channel + 6f, half + 6f, along * 0.4f + 0.1f);
+                float xOuter = side * Mathf.Lerp(half * 0.7f, half + 32f, along);
+                float x = Mathf.Lerp(xInner, xOuter, 0.35f + (float)rng.NextDouble() * 0.45f);
                 float shore = DiveWorldConfig.ShorelineZ(x);
-                float z = shore + Mathf.Lerp(-8f, 78f, along) + (float)(rng.NextDouble() * 6.0 - 3.0);
+                float z = shore + Mathf.Lerp(-6f, 95f, along) + (float)(rng.NextDouble() * 8.0 - 4.0);
 
-                // Keep the center swim channel clear.
-                if (Mathf.Abs(x) < channel - 2f)
+                if (Mathf.Abs(x) < channel - 1.5f)
                     continue;
 
-                float h = Mathf.Lerp(2.8f, 6.5f, (float)rng.NextDouble());
-                float w = Mathf.Lerp(3.5f, 7.5f, (float)rng.NextDouble());
-                float d = Mathf.Lerp(4f, 9f, (float)rng.NextDouble());
-                float y = DiveWorldConfig.WaterSurfaceY + h * 0.15f - Mathf.Lerp(0.2f, 2.8f, along);
+                int boulders = 3 + rng.Next(0, 4);
+                for (int b = 0; b < boulders; b++)
+                {
+                    float ox = x + (float)(rng.NextDouble() * 5.5 - 2.75);
+                    float oz = z + (float)(rng.NextDouble() * 5.5 - 2.75);
+                    if (Mathf.Abs(ox) < channel - 1f)
+                        continue;
 
-                var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                block.name = side < 0f ? "LeftReef" : "RightReef";
-                block.transform.SetParent(parent, false);
-                block.transform.position = new Vector3(x, y, z);
-                block.transform.localScale = new Vector3(w, h, d);
-                block.transform.rotation = Quaternion.Euler(
-                    (float)rng.NextDouble() * 12f,
-                    (float)rng.NextDouble() * 50f - 25f + side * 18f,
-                    (float)rng.NextDouble() * 12f);
-                block.GetComponent<MeshRenderer>().sharedMaterial =
-                    along > 0.35f && rng.NextDouble() < 0.45 ? coralMat : rockMat;
+                    float s = Mathf.Lerp(1.6f, 4.8f, (float)rng.NextDouble()) * (1f - b * 0.08f);
+                    float y = DiveWorldConfig.WaterSurfaceY
+                        + s * 0.18f
+                        - Mathf.Lerp(0.15f, 2.4f, along)
+                        - (float)rng.NextDouble() * 0.6f;
+
+                    // Mix shapes so the flank reads as reef/rock, not a wall.
+                    PrimitiveType prim = rng.NextDouble() < 0.45
+                        ? PrimitiveType.Sphere
+                        : rng.NextDouble() < 0.55
+                            ? PrimitiveType.Capsule
+                            : PrimitiveType.Cube;
+                    var rock = GameObject.CreatePrimitive(prim);
+                    rock.name = side < 0f ? "LeftReefRock" : "RightReefRock";
+                    rock.transform.SetParent(parent, false);
+                    rock.transform.position = new Vector3(ox, y, oz);
+                    if (prim == PrimitiveType.Capsule)
+                    {
+                        rock.transform.localScale = new Vector3(
+                            s * Mathf.Lerp(0.45f, 0.85f, (float)rng.NextDouble()),
+                            s * Mathf.Lerp(0.35f, 0.7f, (float)rng.NextDouble()),
+                            s * Mathf.Lerp(0.45f, 0.85f, (float)rng.NextDouble()));
+                        rock.transform.rotation = Quaternion.Euler(
+                            70f + (float)rng.NextDouble() * 40f,
+                            (float)rng.NextDouble() * 360f,
+                            (float)rng.NextDouble() * 30f - 15f);
+                    }
+                    else if (prim == PrimitiveType.Sphere)
+                    {
+                        float sx = s * Mathf.Lerp(0.7f, 1.25f, (float)rng.NextDouble());
+                        float sy = s * Mathf.Lerp(0.45f, 0.9f, (float)rng.NextDouble());
+                        float sz = s * Mathf.Lerp(0.7f, 1.25f, (float)rng.NextDouble());
+                        rock.transform.localScale = new Vector3(sx, sy, sz);
+                        rock.transform.rotation = Quaternion.Euler(
+                            (float)rng.NextDouble() * 40f,
+                            (float)rng.NextDouble() * 360f,
+                            (float)rng.NextDouble() * 40f);
+                    }
+                    else
+                    {
+                        rock.transform.localScale = new Vector3(
+                            s * Mathf.Lerp(0.6f, 1.2f, (float)rng.NextDouble()),
+                            s * Mathf.Lerp(0.35f, 0.75f, (float)rng.NextDouble()),
+                            s * Mathf.Lerp(0.6f, 1.2f, (float)rng.NextDouble()));
+                        rock.transform.rotation = Quaternion.Euler(
+                            (float)rng.NextDouble() * 35f,
+                            (float)rng.NextDouble() * 360f,
+                            (float)rng.NextDouble() * 35f);
+                    }
+
+                    rock.GetComponent<MeshRenderer>().sharedMaterial =
+                        along > 0.4f && rng.NextDouble() < 0.4 ? coralMat : rockMat;
+                }
             }
 
-            // Extra coral crowns on the seaward tip of each headland.
-            for (int i = 0; i < 10; i++)
+            // Coral crowns / fingers on the seaward tips — keep channel clear.
+            for (int i = 0; i < 16; i++)
             {
-                float x = side * (half + 4f + (float)rng.NextDouble() * 18f);
-                float z = DiveWorldConfig.ShorelineZ(x) + 40f + (float)rng.NextDouble() * 45f;
+                float x = side * (half + 2f + (float)rng.NextDouble() * 22f);
+                float z = DiveWorldConfig.ShorelineZ(x) + 35f + (float)rng.NextDouble() * 55f;
                 if (Mathf.Abs(x) < channel)
                     continue;
-                var crown = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+
+                bool sphere = rng.NextDouble() < 0.4;
+                var crown = GameObject.CreatePrimitive(sphere ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
                 crown.name = "HeadlandCoral";
-                Object.Destroy(crown.GetComponent<CapsuleCollider>());
+                Object.Destroy(crown.GetComponent<Collider>());
                 crown.transform.SetParent(parent, false);
-                float hgt = Mathf.Lerp(0.8f, 2.4f, (float)rng.NextDouble());
-                crown.transform.position = new Vector3(x, -1.2f + hgt * 0.35f, z);
-                crown.transform.localScale = new Vector3(
-                    Mathf.Lerp(0.35f, 0.9f, (float)rng.NextDouble()),
-                    hgt * 0.5f,
-                    Mathf.Lerp(0.35f, 0.9f, (float)rng.NextDouble()));
-                crown.GetComponent<MeshRenderer>().sharedMaterial = coralMat;
+                float hgt = Mathf.Lerp(0.7f, 2.6f, (float)rng.NextDouble());
+                float rad = Mathf.Lerp(0.3f, 1.1f, (float)rng.NextDouble());
+                crown.transform.position = new Vector3(x, -1.1f + hgt * 0.3f, z);
+                crown.transform.localScale = sphere
+                    ? new Vector3(rad * 1.4f, hgt * 0.55f, rad * 1.4f)
+                    : new Vector3(rad, hgt * 0.5f, rad);
+                crown.transform.rotation = Quaternion.Euler(
+                    (float)rng.NextDouble() * 18f,
+                    (float)rng.NextDouble() * 360f,
+                    (float)rng.NextDouble() * 18f);
+                crown.GetComponent<MeshRenderer>().sharedMaterial =
+                    rng.NextDouble() < 0.5 ? coralMat : coralMatB;
             }
         }
 
@@ -358,7 +422,7 @@ namespace UnderwaterDiving
                 Color.white, 0.08f, 0.05f, new Vector2(1.5f, 1.5f));
             var coralMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                Color.white, 0.35f, 0.05f, new Vector2(1.2f, 1.2f));
+                new Color(1f, 0.55f, 0.4f), 0.4f, 0.05f, new Vector2(1.2f, 1.2f));
 
             var rng = new System.Random(20261110);
             int rockCount = 160;
@@ -402,16 +466,17 @@ namespace UnderwaterDiving
                     depth > DiveWorldConfig.MidMaxDepth ? deepRockMat : rockMat;
             }
 
-            // Dense reef scatter in the short nearshore shallows (fish companions).
-            int coralCount = 140;
+            // Dense reef scatter through the gentle nearshore shallows (fish companions).
+            int coralCount = 180;
             for (int n = 0; n < coralCount; n++)
             {
-                float wx = (float)(rng.NextDouble() * 160.0 - 80.0);
+                float wx = (float)(rng.NextDouble() * 180.0 - 90.0);
                 // Keep the open channel mostly clear; bias life toward flanks + just past mouth.
                 if (Mathf.Abs(wx) < DiveWorldConfig.ShoreChannelHalfWidth * 0.55f && rng.NextDouble() < 0.55)
                     wx = (wx < 0f ? -1f : 1f) * (DiveWorldConfig.ShoreChannelHalfWidth * 0.6f
                         + (float)rng.NextDouble() * 40f);
-                float wz = DiveWorldConfig.ShorelineZ(wx) + 8f + (float)(rng.NextDouble() * 140.0);
+                float wz = DiveWorldConfig.ShorelineZ(wx) + 12f
+                    + (float)(rng.NextDouble() * DiveWorldConfig.NearshoreShallowDistance * 0.85);
                 int ix = Mathf.Clamp(Mathf.RoundToInt((wx - origin) / step), 1, res - 2);
                 int iz = Mathf.Clamp(Mathf.RoundToInt((wz - origin) / step), 1, res - 2);
                 float wy = h[ix, iz];

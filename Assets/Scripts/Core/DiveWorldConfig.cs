@@ -3,8 +3,8 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Active dive site + shared extents. Starting site is a short Maldives-style
-    /// curved bay: bright sand, turquoise shallows, shops behind the waterline.
+    /// Active dive site + shared extents. Starting site is a Maldives-style
+    /// curved bay: bright sand, gentle turquoise walk-in, shops behind the waterline.
     /// </summary>
     public static class DiveWorldConfig
     {
@@ -47,8 +47,11 @@ namespace UnderwaterDiving
         /// <summary>Offshore distance (m) where the floor reaches CoastalShelfDepth.</summary>
         public const float CoastalShelfDistance = 1500f;
 
-        /// <summary>Short Maldives shallows: reach ~4–5 m depth within this offshore distance.</summary>
-        public const float NearshoreShallowDistance = 85f;
+        /// <summary>
+        /// Gentle walk-in shallows (Turkey-like): reach ~5 m depth over this offshore distance.
+        /// No abrupt drop at the waterline — depth grows gradually into turquoise.
+        /// </summary>
+        public const float NearshoreShallowDistance = 280f;
 
         // Beach waterline: standing on wet sand at bay center, facing +Z into turquoise water.
         public const float PlayerSpawnX = 0f;
@@ -61,15 +64,15 @@ namespace UnderwaterDiving
         public const int MaxUpgradeLevel = 5;
         public const int UpgradePriceStep = 45;
 
-        // Three beach shops in an arc behind spawn (dry sand). Center faces the water;
-        // left/right sit slightly inland and angled inward.
-        public static Vector3 GearMarketPos => new Vector3(0f, 1.15f, BeachShoreZ - 34f);
-        public static Vector3 DecorShopPos => new Vector3(-16f, 1.15f, BeachShoreZ - 28f);
-        public static Vector3 BeachSuppliesPos => new Vector3(16f, 1.15f, BeachShoreZ - 28f);
+        // Three beach shops in an arc behind spawn (dry sand).
+        // Center faces the water straight on; left/right sit on the arc, angled inward.
+        public static Vector3 GearMarketPos => new Vector3(0f, 1.15f, BeachShoreZ - 36f);
+        public static Vector3 DecorShopPos => new Vector3(-18f, 1.15f, BeachShoreZ - 27f);
+        public static Vector3 BeachSuppliesPos => new Vector3(18f, 1.15f, BeachShoreZ - 27f);
 
         public const float GearMarketYaw = 0f;
-        public const float DecorShopYaw = 28f;
-        public const float BeachSuppliesYaw = -28f;
+        public const float DecorShopYaw = 34f;
+        public const float BeachSuppliesYaw = -34f;
 
         public const float ShopInteractRadius = 7.5f;
 
