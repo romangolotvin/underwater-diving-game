@@ -53,11 +53,24 @@ namespace UnderwaterDiving
 
         void Update()
         {
-            if (GameUi.BlocksGameplay || spot == null)
+            // L must not depend on GameUi.BlocksGameplay: WASD agents left that mask
+            // sticky across Update-order races, which silently killed the torch while
+            // shops/map were already closed. Light toggle is harmless over UI.
+            EnsureBound();
+            if (spot == null)
                 return;
 
             if (WasTogglePressed())
                 SetOn(!isOn);
+        }
+
+        void EnsureBound()
+        {
+            if (spot != null)
+                return;
+            var swim = SwimController.Instance;
+            if (swim != null && swim.CameraPivot != null)
+                Bind(swim.CameraPivot);
         }
 
         bool WasTogglePressed()

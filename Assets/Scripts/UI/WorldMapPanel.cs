@@ -282,9 +282,12 @@ namespace UnderwaterDiving
             if (!Input.GetKeyDown(MapToggleKey))
                 return;
 
+            // M must toggle from live open state — never from GameUi.BlocksGameplay.
+            // A stale mask (shop LateUpdate / Update-order vs ReconcileLive) used to
+            // swallow Open while every panel was already closed.
             if (open)
                 Close();
-            else if (!GameUi.BlocksGameplay)
+            else
                 Open();
         }
     }

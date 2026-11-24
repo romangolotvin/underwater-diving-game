@@ -10,6 +10,7 @@ namespace UnderwaterDiving
     /// Shore/wade WASD uses Rigidbody.MovePosition so PhysX contact cannot cancel movement.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
+    [DefaultExecutionOrder(-100)] // ReconcileUiGate before map/flashlight/shop Updates
     public class SwimController : MonoBehaviour
     {
         public static SwimController Instance { get; private set; }

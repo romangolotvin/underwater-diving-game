@@ -8,6 +8,8 @@ Asserts:
 3. Shore path uses Rigidbody.MovePosition (PhysX cannot cancel).
 4. Closed map/shop IsOpen expressions cannot force BlocksGameplay true alone.
 5. SampleMoveInput prefers GetKey over axes.
+6. M map toggle must not gate Open on BlocksGameplay.
+7. L flashlight must not early-out on BlocksGameplay.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ MAP = ROOT / "Assets/Scripts/UI/WorldMapPanel.cs"
 GEAR = ROOT / "Assets/Scripts/Economy/GearMarket.cs"
 DECOR = ROOT / "Assets/Scripts/Economy/DecorShop.cs"
 CORAL = ROOT / "Assets/Scripts/World/CoralDiveShop.cs"
+FLASH = ROOT / "Assets/Scripts/Player/DiverFlashlight.cs"
 
 errors: list[str] = []
 
@@ -111,6 +114,35 @@ def main() -> int:
     # --- ReconcileLive absolute mask ---
     must("ReconcileLive" in game_ui, "GameUi.ReconcileLive missing")
     must("mask = desired" in game_ui, "ReconcileLive must assign absolute mask")
+    must("DefaultExecutionOrder(-100)" in swim or 'DefaultExecutionOrder(-100)' in swim,
+         "SwimController must run Reconcile before other UI Updates")
+
+    # --- M / L must not be silenced by stale BlocksGameplay mask ---
+    flash = read(FLASH)
+    map_upd = re.search(r"void Update\(\)\s*\{(.*?)\n        \}", world_map, re.S)
+    must(map_upd is not None, "WorldMapPanel.Update not found")
+    if map_upd:
+        body = map_upd.group(1)
+        must("MapToggleKey" in body or "KeyCode.M" in world_map, "WorldMapPanel must listen for M")
+        must(
+            "else if (!GameUi.BlocksGameplay)" not in body
+            and re.search(r"else\s+if\s*\(\s*!GameUi\.BlocksGameplay", body) is None,
+            "WorldMapPanel M Open must NOT gate on BlocksGameplay",
+        )
+        must(re.search(r"if\s*\(\s*open\s*\)\s*\n?\s*Close\(\)\s*;\s*\n?\s*else\s*\n?\s*Open\(\)", body) is not None
+             or ("Close()" in body and "Open()" in body and "BlocksGameplay" not in body),
+             "WorldMapPanel M must toggle Open/Close without BlocksGameplay")
+
+    flash_upd = re.search(r"void Update\(\)\s*\{(.*?)\n        \}", flash, re.S)
+    must(flash_upd is not None, "DiverFlashlight.Update not found")
+    if flash_upd:
+        body = flash_upd.group(1)
+        must(
+            re.search(r"if\s*\(.*GameUi\.BlocksGameplay", body) is None,
+            "DiverFlashlight must not early-out on BlocksGameplay",
+        )
+        must("WasTogglePressed()" in body or "GetKeyDown" in body, "DiverFlashlight must poll L")
+    must("KeyCode.L" in flash, "DiverFlashlight must honor KeyCode.L")
 
     # --- Path summary when map closed ---
     print("PATH (map closed → walk):")
@@ -118,6 +150,9 @@ def main() -> int:
     print("  FixedUpdate: ReconcileUiGate() → !BlocksGameplay → ApplyThrust()")
     print("  ApplyThrust: Submersion < shoreMoveSubmersionMax → ApplyShoreMove → MovePosition(XZ)")
     print("  ApplyThrust: else → ApplySwimMove → AddForce")
+    print("PATH (hotkeys):")
+    print("  M: WorldMapPanel toggles Open/Close (no BlocksGameplay gate)")
+    print("  L: DiverFlashlight toggles spot (no BlocksGameplay gate)")
 
     if errors:
         print("FAIL:")
