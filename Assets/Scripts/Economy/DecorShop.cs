@@ -102,7 +102,7 @@ namespace UnderwaterDiving
                 if (img != null) img.raycastTarget = true;
                 panel.SetActive(true);
             }
-            GameUi.SetBlocking(true);
+            GameUi.SetBlocked(GameUi.Blocker.DecorShop, true);
             Refresh();
         }
 
@@ -116,7 +116,18 @@ namespace UnderwaterDiving
                 if (img != null) img.raycastTarget = false;
                 panel.SetActive(false);
             }
-            GameUi.SetBlocking(false);
+            GameUi.SetBlocked(GameUi.Blocker.DecorShop, false);
+        }
+
+        void OnDisable()
+        {
+            open = false;
+            GameUi.SetBlocked(GameUi.Blocker.DecorShop, false);
+        }
+
+        void LateUpdate()
+        {
+            GameUi.SetBlocked(GameUi.Blocker.DecorShop, open && panel != null && panel.activeSelf);
         }
 
         void Cycle(int delta)

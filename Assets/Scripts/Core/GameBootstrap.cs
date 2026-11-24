@@ -135,14 +135,27 @@ namespace UnderwaterDiving
 
             var rb = player.AddComponent<Rigidbody>();
             rb.mass = 80f;
+            rb.isKinematic = false;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.constraints = RigidbodyConstraints.FreezeRotation;
+            rb.linearDamping = 0.05f;
+            rb.angularDamping = 0.5f;
 
             var col = player.AddComponent<CapsuleCollider>();
             col.height = 1.8f;
             col.radius = 0.35f;
             col.center = new Vector3(0f, 0f, 0f);
+            // Zero friction so shore mesh contact cannot cancel WASD walk thrust.
+            var walkMat = new PhysicsMaterial("DiverWalk")
+            {
+                dynamicFriction = 0f,
+                staticFriction = 0f,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+                bounceCombine = PhysicsMaterialCombine.Minimum,
+                bounciness = 0f
+            };
+            col.material = walkMat;
 
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             body.name = "SuitBody";

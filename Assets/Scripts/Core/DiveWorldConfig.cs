@@ -54,9 +54,10 @@ namespace UnderwaterDiving
         public const float NearshoreShallowDistance = 280f;
 
         // Beach waterline: standing on wet sand at bay center, facing +Z into turquoise water.
+        // Y is capsule center; UnstickFromGeometry snaps feet onto the mesh after boot.
         public const float PlayerSpawnX = 0f;
-        public const float PlayerSpawnY = 1.25f;
-        public const float PlayerSpawnZ = BeachShoreZ - 8f;
+        public const float PlayerSpawnY = 1.55f;
+        public const float PlayerSpawnZ = BeachShoreZ - 6f;
 
         public static Vector3 PlayerSpawn => new Vector3(PlayerSpawnX, PlayerSpawnY, PlayerSpawnZ);
 

@@ -173,7 +173,7 @@ namespace UnderwaterDiving
                 if (img != null) img.raycastTarget = true;
                 panel.SetActive(true);
             }
-            GameUi.SetBlocking(true);
+            GameUi.SetBlocked(GameUi.Blocker.CoralShop, true);
             Refresh();
         }
 
@@ -187,7 +187,20 @@ namespace UnderwaterDiving
                 if (img != null) img.raycastTarget = false;
                 panel.SetActive(false);
             }
-            GameUi.SetBlocking(false);
+            GameUi.SetBlocked(GameUi.Blocker.CoralShop, false);
+        }
+
+        void OnDisable()
+        {
+            open = false;
+            GameUi.SetBlocked(GameUi.Blocker.CoralShop, false);
+        }
+
+        void LateUpdate()
+        {
+            // Several coral stalls share one blocker bit — only the open stall refreshes it.
+            if (open)
+                GameUi.SetBlocked(GameUi.Blocker.CoralShop, panel != null && panel.activeSelf);
         }
 
         void Cycle(int delta)

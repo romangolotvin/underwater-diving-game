@@ -27,7 +27,8 @@ namespace UnderwaterDiving
         [SerializeField] float sprintMultiplier = 1.55f;
         [SerializeField] float maxSwimSpeed = 7.5f;
         [SerializeField] float maxSprintSpeed = 11f;
-        [SerializeField] float aboveWaterWalkForce = 18f;
+        [SerializeField] float aboveWaterWalkForce = 28f;
+        [SerializeField] float aboveWaterMaxSpeed = 6.5f;
         [SerializeField] float jumpForce = 6.5f;
 
         [Header("Buoyancy & Drag")]
@@ -39,7 +40,7 @@ namespace UnderwaterDiving
         [SerializeField] float linearDragUnderwater = 2.8f;
         [SerializeField] float quadraticDragUnderwater = 0.45f;
         [SerializeField] float angularDragUnderwater = 3.5f;
-        [SerializeField] float linearDragAir = 0.15f;
+        [SerializeField] float linearDragAir = 0.05f;
         [SerializeField] float surfaceBreakDamping = 0.65f;
 
         [Header("Feel")]
@@ -53,6 +54,9 @@ namespace UnderwaterDiving
         float pitch;
         Vector3 smoothedMove;
         Vector3 moveVelocityRef;
+        /// <summary>Move intent sampled in Update (FixedUpdate must not read Input for held keys alone).</summary>
+        Vector3 cachedMoveInput;
+        bool jumpQueued;
         bool cursorLocked = true;
         int lockAcquiredFrame = -1;
         DiverSuit suit;
@@ -70,6 +74,7 @@ namespace UnderwaterDiving
         {
             if (body == null)
                 return;
+            EnsureDynamicBody();
             body.AddForce(force, ForceMode.Acceleration);
         }
 
@@ -82,6 +87,7 @@ namespace UnderwaterDiving
         {
             Instance = this;
             body = GetComponent<Rigidbody>();
+            EnsureDynamicBody();
             body.mass = playerMass;
             body.useGravity = true;
             body.interpolation = RigidbodyInterpolation.Interpolate;
@@ -115,6 +121,55 @@ namespace UnderwaterDiving
         void Start()
         {
             LockCursor(true);
+            EnsureDynamicBody();
+            UnstickFromGeometry();
+        }
+
+        /// <summary>
+        /// Lift out of sand / shop decks / reef rocks so contact constraints cannot cancel WASD.
+        /// </summary>
+        public void UnstickFromGeometry()
+        {
+            EnsureDynamicBody();
+            if (body == null)
+                return;
+
+            var capsule = GetComponent<CapsuleCollider>();
+            if (capsule == null)
+                return;
+
+            Vector3 origin = transform.position + Vector3.up * 8f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit ground, 24f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                float half = Mathf.Max(0.05f, capsule.height * 0.5f);
+                Vector3 p = transform.position;
+                p.y = ground.point.y + half + 0.06f;
+                transform.position = p;
+                body.position = p;
+            }
+
+            Collider[] hits = Physics.OverlapSphere(
+                transform.position, capsule.radius + 0.65f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var other = hits[i];
+                if (other == null || other == capsule || other.transform.IsChildOf(transform))
+                    continue;
+                if (Physics.ComputePenetration(
+                        capsule, transform.position, transform.rotation,
+                        other, other.transform.position, other.transform.rotation,
+                        out Vector3 dir, out float dist)
+                    && dist > 0.001f)
+                {
+                    Vector3 p = transform.position + dir * (dist + 0.06f);
+                    transform.position = p;
+                    body.position = p;
+                }
+            }
+
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.WakeUp();
         }
 
         void OnApplicationFocus(bool focus)
@@ -132,11 +187,18 @@ namespace UnderwaterDiving
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
 
+            // Sample move every frame — WASD held keys are reliable here; FixedUpdate alone can miss.
+            cachedMoveInput = SampleMoveInput();
+            if (!GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f && !IsUnderwater)
+                jumpQueued = true;
+
             if (GameUi.BlocksGameplay)
             {
                 // UI owns the cursor — never leave cursorLocked stuck true while free.
                 if (cursorLocked || Cursor.lockState == CursorLockMode.Locked)
                     LockCursor(false);
+                jumpQueued = false;
+                smoothedMove = Vector3.SmoothDamp(smoothedMove, Vector3.zero, ref moveVelocityRef, inputSmoothTime);
                 return;
             }
 
@@ -151,6 +213,8 @@ namespace UnderwaterDiving
 
         void FixedUpdate()
         {
+            EnsureDynamicBody();
+
             float surfaceY = DiveWorldConfig.WaterSurfaceY;
             float floorY = DiveWorldConfig.OceanFloorY;
             var water = WaterVolume.Instance;
@@ -172,11 +236,25 @@ namespace UnderwaterDiving
 
             ApplyBuoyancy();
             ApplyDrag();
-            // Move is never gated on cursor lock — only on blocking UI.
+            // Move is never gated on cursor lock — only on blocking UI (map/shops).
             if (!GameUi.BlocksGameplay)
                 ApplyThrust();
             ClampMaxSpeed();
             SoftFloorCeiling(surfaceY, floorY);
+        }
+
+        void EnsureDynamicBody()
+        {
+            if (body == null)
+                body = GetComponent<Rigidbody>();
+            if (body == null)
+                return;
+            if (body.isKinematic)
+                body.isKinematic = false;
+            if (body.constraints != RigidbodyConstraints.FreezeRotation)
+                body.constraints = RigidbodyConstraints.FreezeRotation;
+            if (body.IsSleeping())
+                body.WakeUp();
         }
 
         static float GetSubmersionAt(Vector3 center, float height, float surfaceY)
@@ -290,7 +368,7 @@ namespace UnderwaterDiving
             }
 
             // Subtle idle bob when nearly neutrally floating near surface.
-            if (Submersion > 0.4f && Submersion < 0.95f && GetMoveInput().sqrMagnitude < 0.05f)
+            if (Submersion > 0.4f && Submersion < 0.95f && cachedMoveInput.sqrMagnitude < 0.05f)
             {
                 float bob = Mathf.Sin(Time.time * nearSurfaceBobFrequency * Mathf.PI * 2f) * nearSurfaceBobAmplitude;
                 body.AddForce(Vector3.up * bob, ForceMode.Acceleration);
@@ -310,7 +388,7 @@ namespace UnderwaterDiving
                 if (speed > 0.001f)
                 {
                     Vector3 drag = -v.normalized * (quadraticDragUnderwater * speed * speed);
-                    if (GetMoveInput().sqrMagnitude < 0.05f)
+                    if (cachedMoveInput.sqrMagnitude < 0.05f)
                         drag *= stopAssist;
                     body.AddForce(drag, ForceMode.Acceleration);
                 }
@@ -324,7 +402,7 @@ namespace UnderwaterDiving
 
         void ApplyThrust()
         {
-            Vector3 raw = GetMoveInput();
+            Vector3 raw = cachedMoveInput;
             smoothedMove = Vector3.SmoothDamp(smoothedMove, raw, ref moveVelocityRef, inputSmoothTime);
 
             bool sprint = Input.GetKey(KeyCode.LeftShift);
@@ -342,20 +420,36 @@ namespace UnderwaterDiving
 
                 body.AddForce(wish * swimForce * forceMul, ForceMode.Acceleration);
 
-                // Extra dedicated vertical authority (Space / Ctrl already in GetMoveInput.y).
+                // Extra dedicated vertical authority (Space / Ctrl already in SampleMoveInput.y).
                 if (Mathf.Abs(smoothedMove.y) > 0.01f)
                     body.AddForce(Vector3.up * smoothedMove.y * verticalForce * 0.35f * forceMul, ForceMode.Acceleration);
             }
             else
             {
+                // Shore / surface: drive horizontal velocity directly so mesh friction cannot eat AddForce.
                 Vector3 flat = new Vector3(smoothedMove.x, 0f, smoothedMove.z);
+                float inputMag = Mathf.Clamp01(flat.magnitude);
                 if (flat.sqrMagnitude > 1f)
                     flat.Normalize();
                 Vector3 world = transform.TransformDirection(flat);
-                body.AddForce(world * aboveWaterWalkForce, ForceMode.Acceleration);
+                float target = aboveWaterMaxSpeed * forceMul * inputMag;
+                Vector3 v = body.linearVelocity;
+                Vector3 currentHoriz = new Vector3(v.x, 0f, v.z);
+                Vector3 desired = world * target;
+                Vector3 newHoriz = Vector3.MoveTowards(
+                    currentHoriz,
+                    desired,
+                    aboveWaterWalkForce * forceMul * Time.fixedDeltaTime);
+                body.linearVelocity = new Vector3(newHoriz.x, v.y, newHoriz.z);
 
-                if (Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f)
-                    body.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
+                if (jumpQueued)
+                {
+                    jumpQueued = false;
+                    Vector3 jv = body.linearVelocity;
+                    if (jv.y < jumpForce)
+                        jv.y = jumpForce;
+                    body.linearVelocity = jv;
+                }
             }
         }
 
@@ -374,10 +468,15 @@ namespace UnderwaterDiving
             }
             else
             {
+                float cap = Mathf.Max(aboveWaterMaxSpeed, max * 0.65f);
+                if (suit != null)
+                    cap *= suit.SwimSpeedMultiplier;
+                if (sprint)
+                    cap *= sprintMultiplier;
                 Vector3 flat = new Vector3(v.x, 0f, v.z);
-                if (flat.magnitude > max * 0.65f)
+                if (flat.magnitude > cap)
                 {
-                    flat = flat.normalized * (max * 0.65f);
+                    flat = flat.normalized * cap;
                     body.linearVelocity = new Vector3(flat.x, v.y, flat.z);
                 }
             }
@@ -392,6 +491,7 @@ namespace UnderwaterDiving
             {
                 p.y = minY;
                 transform.position = p;
+                body.position = p;
                 Vector3 v = body.linearVelocity;
                 if (v.y < 0f) v.y = 0f;
                 body.linearVelocity = v;
@@ -400,6 +500,7 @@ namespace UnderwaterDiving
             {
                 p.y = maxY;
                 transform.position = p;
+                body.position = p;
             }
 
             // Invisible soft boundary only — no rock walls. Fog hides the limit.
@@ -418,30 +519,37 @@ namespace UnderwaterDiving
                 if (mag > soft)
                 {
                     flat = outward * soft;
-                    transform.position = new Vector3(flat.x, p.y, flat.z);
+                    Vector3 clamped = new Vector3(flat.x, p.y, flat.z);
+                    transform.position = clamped;
+                    body.position = clamped;
                 }
             }
         }
 
         /// <summary>
         /// x = strafe, y = up/down, z = forward.
-        /// Uses Horizontal/Vertical axes plus GetKey so WASD still works if Input Manager axes misbehave.
+        /// Keyboard GetKey is authoritative; Horizontal/Vertical axes are fallback only.
         /// Desktop keyboard only — no mobile touch joystick in this project.
         /// </summary>
-        Vector3 GetMoveInput()
+        static Vector3 SampleMoveInput()
         {
-            float x = Input.GetAxisRaw("Horizontal");
-            float z = Input.GetAxisRaw("Vertical");
-
-            // Hard key fallback (legacy Input) — never depend solely on axis wiring.
+            // Hard key path first — never depend solely on axis wiring / UI navigation axes.
             bool left = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
             bool right = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
             bool back = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
             bool forward = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+
+            float x;
+            float z;
             if (left || right)
                 x = (right ? 1f : 0f) - (left ? 1f : 0f);
+            else
+                x = Input.GetAxisRaw("Horizontal");
+
             if (forward || back)
                 z = (forward ? 1f : 0f) - (back ? 1f : 0f);
+            else
+                z = Input.GetAxisRaw("Vertical");
 
             float y = 0f;
             if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E))

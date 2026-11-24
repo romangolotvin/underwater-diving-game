@@ -50,6 +50,10 @@ namespace UnderwaterDiving
         {
             var img = MakePanel(parent, name, aMin, aMax, new Color(0.12f, 0.28f, 0.36f, 0.92f));
             var btn = img.gameObject.AddComponent<Button>();
+            // WASD / arrows must not steer UI focus — gameplay owns Horizontal/Vertical.
+            var nav = btn.navigation;
+            nav.mode = Navigation.Mode.None;
+            btn.navigation = nav;
             var colors = btn.colors;
             colors.highlightedColor = new Color(0.18f, 0.42f, 0.5f, 1f);
             colors.pressedColor = new Color(0.08f, 0.2f, 0.26f, 1f);
@@ -61,11 +65,17 @@ namespace UnderwaterDiving
 
         public static void EnsureEventSystem()
         {
-            if (Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() != null)
+            var existing = Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+            if (existing != null)
+            {
+                // WASD / arrows must move the diver, not navigate HUD selectables.
+                existing.sendNavigationEvents = false;
                 return;
-            var es = new GameObject("EventSystem");
-            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            }
+            var go = new GameObject("EventSystem");
+            var es = go.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            es.sendNavigationEvents = false;
+            go.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
         }
     }
 }

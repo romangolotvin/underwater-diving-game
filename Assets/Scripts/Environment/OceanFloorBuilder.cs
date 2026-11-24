@@ -322,6 +322,10 @@ namespace UnderwaterDiving
 
                     rock.GetComponent<MeshRenderer>().sharedMaterial =
                         along > 0.4f && rng.NextDouble() < 0.4 ? coralMat : rockMat;
+
+                    // Keep the open swim/walk channel free — colliders here trapped the diver at spawn.
+                    if (Mathf.Abs(ox) < channel + 14f)
+                        Object.Destroy(rock.GetComponent<Collider>());
                 }
             }
 

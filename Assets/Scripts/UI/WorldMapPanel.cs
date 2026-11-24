@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace UnderwaterDiving
@@ -41,6 +42,7 @@ namespace UnderwaterDiving
                 new Vector2(0.58f, 0.07f),
                 "Карта",
                 Toggle);
+            DisableNavigation(toggleButton);
 
             toggleLabel = toggleButton.GetComponentInChildren<Text>();
 
@@ -63,13 +65,14 @@ namespace UnderwaterDiving
                 TextAnchor.MiddleLeft,
                 "World Map / Карта мира");
 
-            ShopUiUtil.MakeButton(
+            var closeBtn = ShopUiUtil.MakeButton(
                 panelRoot.transform,
                 "CloseMap",
                 new Vector2(0.82f, 0.9f),
                 new Vector2(0.97f, 0.97f),
                 "✕",
                 Close);
+            DisableNavigation(closeBtn);
 
             var mapArea = ShopUiUtil.MakePanel(
                 panelRoot.transform,
@@ -104,6 +107,18 @@ namespace UnderwaterDiving
                 CreatePin(mapArea.transform, site);
 
             panelRoot.SetActive(false);
+            open = false;
+            GameUi.SetBlocked(GameUi.Blocker.Map, false);
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        static void DisableNavigation(Selectable selectable)
+        {
+            if (selectable == null) return;
+            var nav = selectable.navigation;
+            nav.mode = Navigation.Mode.None;
+            selectable.navigation = nav;
         }
 
         static MapSite[] BuildSites()
@@ -147,6 +162,7 @@ namespace UnderwaterDiving
                 raycast: true);
 
             var btn = pin.gameObject.AddComponent<Button>();
+            DisableNavigation(btn);
             var colors = btn.colors;
             colors.highlightedColor = new Color(1f, 0.75f, 0.35f, 1f);
             colors.pressedColor = new Color(0.65f, 0.35f, 0.1f, 1f);
@@ -187,11 +203,9 @@ namespace UnderwaterDiving
             if (open) return;
             open = true;
             if (panelRoot != null)
-            {
                 panelRoot.SetActive(true);
-            }
             if (toggleLabel != null) toggleLabel.text = "Закрыть";
-            GameUi.SetBlocking(true);
+            GameUi.SetBlocked(GameUi.Blocker.Map, true);
         }
 
         void Close()
@@ -201,7 +215,7 @@ namespace UnderwaterDiving
             if (panelRoot != null)
                 panelRoot.SetActive(false);
             if (toggleLabel != null) toggleLabel.text = "Карта";
-            GameUi.SetBlocking(false);
+            GameUi.SetBlocked(GameUi.Blocker.Map, false);
         }
 
         void TeleportTo(Vector3 worldPos, string siteName)
@@ -216,12 +230,28 @@ namespace UnderwaterDiving
             var rb = swim.GetComponent<Rigidbody>();
             if (rb != null)
             {
+                rb.isKinematic = false;
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
                 rb.position = worldPos;
+                rb.WakeUp();
             }
             swim.transform.position = worldPos;
+            swim.UnstickFromGeometry();
             Close();
+        }
+
+        void OnDisable()
+        {
+            // Never leave Map bit stuck if the HUD is torn down while open.
+            open = false;
+            GameUi.SetBlocked(GameUi.Blocker.Map, false);
+        }
+
+        void LateUpdate()
+        {
+            // Authoritative sync: closed map must not keep BlocksGameplay true.
+            GameUi.SetBlocked(GameUi.Blocker.Map, open && panelRoot != null && panelRoot.activeSelf);
         }
 
         void Update()
