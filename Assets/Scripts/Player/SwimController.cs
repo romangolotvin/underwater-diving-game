@@ -30,10 +30,11 @@ namespace UnderwaterDiving
         [Header("Buoyancy & Drag")]
         [SerializeField] float playerHeight = 1.8f;
         [SerializeField] float playerMass = 80f;
-        [SerializeField] float buoyancyStrength = 18f;
-        [SerializeField] float neutralBuoyancyBias = -0.35f;
-        [SerializeField] float linearDragUnderwater = 1.4f;
-        [SerializeField] float quadraticDragUnderwater = 0.55f;
+        [Tooltip("Upward acceleration while submerged (≈ gravity cancels free-fall).")]
+        [SerializeField] float buoyancyAcceleration = 10.5f;
+        [SerializeField] float neutralBuoyancyBias = -0.6f;
+        [SerializeField] float linearDragUnderwater = 2.8f;
+        [SerializeField] float quadraticDragUnderwater = 0.45f;
         [SerializeField] float angularDragUnderwater = 3.5f;
         [SerializeField] float linearDragAir = 0.15f;
         [SerializeField] float surfaceBreakDamping = 0.65f;
@@ -114,20 +115,43 @@ namespace UnderwaterDiving
 
         void FixedUpdate()
         {
+            float surfaceY = DiveWorldConfig.WaterSurfaceY;
+            float floorY = DiveWorldConfig.OceanFloorY;
             var water = WaterVolume.Instance;
-            if (water == null)
-                return;
+            if (water != null)
+            {
+                surfaceY = water.SurfaceY;
+                floorY = water.FloorY;
+                Submersion = water.GetSubmersion(transform.position, playerHeight);
+                CurrentDepth = water.DepthBelowSurface(transform.position);
+            }
+            else
+            {
+                // Fallback when WaterVolume is missing — still resist free-fall underwater.
+                Submersion = GetSubmersionAt(transform.position, playerHeight, surfaceY);
+                CurrentDepth = Mathf.Max(0f, surfaceY - transform.position.y);
+            }
 
-            Submersion = water.GetSubmersion(transform.position, playerHeight);
             IsUnderwater = Submersion > 0.15f;
-            CurrentDepth = water.DepthBelowSurface(transform.position);
 
-            ApplyBuoyancy(water);
+            ApplyBuoyancy();
             ApplyDrag();
             if (!GameUi.BlocksGameplay)
                 ApplyThrust();
             ClampMaxSpeed();
-            SoftFloorCeiling(water);
+            SoftFloorCeiling(surfaceY, floorY);
+        }
+
+        static float GetSubmersionAt(Vector3 center, float height, float surfaceY)
+        {
+            float half = height * 0.5f;
+            float top = center.y + half;
+            float bottom = center.y - half;
+            if (bottom >= surfaceY)
+                return 0f;
+            if (top <= surfaceY)
+                return 1f;
+            return Mathf.Clamp01((surfaceY - bottom) / Mathf.Max(0.01f, height));
         }
 
         void HandleCursor()
@@ -157,19 +181,16 @@ namespace UnderwaterDiving
                 cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
 
-        void ApplyBuoyancy(WaterVolume water)
+        void ApplyBuoyancy()
         {
+            body.useGravity = true;
             if (Submersion <= 0.001f)
-            {
-                body.useGravity = true;
                 return;
-            }
 
-            // Partial gravity cancel + residual bias so the diver slowly sinks unless kicking up.
-            float gravityMag = Physics.gravity.magnitude;
+            // Acceleration-mode buoyancy ≈ cancels gravity when fully submerged (9–12 range).
             float vest = suit != null ? suit.BuoyancyAssist : 0f;
-            Vector3 buoyancy = Vector3.up * (gravityMag * Submersion * water.Density * buoyancyStrength / 9.81f);
-            buoyancy += Vector3.up * ((neutralBuoyancyBias + vest) * Submersion * playerMass);
+            float accel = (buoyancyAcceleration + neutralBuoyancyBias + vest) * Submersion;
+            body.AddForce(Vector3.up * accel, ForceMode.Acceleration);
 
             // Soft surface slap: bleed upward velocity when crossing the surface.
             if (Submersion < 0.45f && body.linearVelocity.y > 0f)
@@ -183,28 +204,24 @@ namespace UnderwaterDiving
             if (Submersion > 0.4f && Submersion < 0.95f && GetMoveInput().sqrMagnitude < 0.05f)
             {
                 float bob = Mathf.Sin(Time.time * nearSurfaceBobFrequency * Mathf.PI * 2f) * nearSurfaceBobAmplitude;
-                buoyancy += Vector3.up * (bob * playerMass);
+                body.AddForce(Vector3.up * bob, ForceMode.Acceleration);
             }
-
-            body.AddForce(buoyancy, ForceMode.Force);
-            body.useGravity = true;
         }
 
         void ApplyDrag()
         {
             if (IsUnderwater)
             {
-                body.linearDamping = 0f;
+                // Built-in linear damping plus a light quadratic term so falls slow quickly.
+                body.linearDamping = linearDragUnderwater;
                 body.angularDamping = angularDragUnderwater;
 
                 Vector3 v = body.linearVelocity;
                 float speed = v.magnitude;
                 if (speed > 0.001f)
                 {
-                    Vector3 drag = -v.normalized * (linearDragUnderwater * speed + quadraticDragUnderwater * speed * speed);
-                    // Heavier lateral drag when not thrusting helps "glide then settle".
-                    Vector3 input = GetMoveInput();
-                    if (input.sqrMagnitude < 0.05f)
+                    Vector3 drag = -v.normalized * (quadraticDragUnderwater * speed * speed);
+                    if (GetMoveInput().sqrMagnitude < 0.05f)
                         drag *= stopAssist;
                     body.AddForce(drag, ForceMode.Acceleration);
                 }
@@ -277,11 +294,11 @@ namespace UnderwaterDiving
             }
         }
 
-        void SoftFloorCeiling(WaterVolume water)
+        void SoftFloorCeiling(float surfaceY, float floorY)
         {
             Vector3 p = transform.position;
-            float minY = water.FloorY + 1.1f;
-            float maxY = water.SurfaceY + 8f;
+            float minY = floorY + 1.1f;
+            float maxY = surfaceY + 8f;
             if (p.y < minY)
             {
                 p.y = minY;
