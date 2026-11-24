@@ -128,7 +128,11 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            GameUi.SetBlocked(GameUi.Blocker.DecorShop, IsOpen);
+            // Only assert while visibly open — never SetBlocked(false) here (WASD sticky mask).
+            if (IsOpen)
+                GameUi.SetBlocked(GameUi.Blocker.DecorShop, true);
+            else if (open)
+                open = false;
         }
 
         void Cycle(int delta)

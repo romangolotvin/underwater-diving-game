@@ -131,6 +131,7 @@ namespace UnderwaterDiving
                 swim.UnstickFromGeometry();
             }
             GameUi.ClearBlocking();
+            UiGateTail.Attach(gameObject);
         }
 
         void CreatePlayer(Transform root)

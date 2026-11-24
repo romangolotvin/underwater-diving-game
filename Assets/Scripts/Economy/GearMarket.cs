@@ -143,7 +143,13 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            GameUi.SetBlocked(GameUi.Blocker.GearMarket, IsOpen);
+            // Only assert while visibly open — never SetBlocked(false) here.
+            // Clearing from LateUpdate raced SwimController and left WASD/L sticky-dead.
+            // Closed state is absolute via SwimController → GameUi.ReconcileLive.
+            if (IsOpen)
+                GameUi.SetBlocked(GameUi.Blocker.GearMarket, true);
+            else if (open)
+                open = false;
         }
 
         void Cycle(int delta)
@@ -209,7 +215,8 @@ namespace UnderwaterDiving
     {
         public static bool WantsOpen(SwimController swim)
         {
-            if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyDown(KeyCode.E))
+            // F only — E is swim-up and was accidentally opening beach stalls (sticky BlocksGameplay).
+            if (Input.GetKeyDown(KeyCode.F))
                 return true;
             // On the beach (not underwater) locked-cursor click opens trade — spear owns LMB underwater.
             if (swim != null && !swim.IsUnderwater && Input.GetMouseButtonDown(0) && swim.CanUseCombatInput)

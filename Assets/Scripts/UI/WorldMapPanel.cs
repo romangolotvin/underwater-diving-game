@@ -8,6 +8,7 @@ namespace UnderwaterDiving
     /// Simple Canvas world map: toggle panel (M or UI button), clickable region pins, teleport to spawn.
     /// Locations come from DiveWorldConfig (Open Ocean) + DiveRegionCatalog country sites.
     /// </summary>
+    [DefaultExecutionOrder(40)] // After SwimController (-100); M must not wait on BlocksGameplay
     public class WorldMapPanel : MonoBehaviour
     {
         const KeyCode MapToggleKey = KeyCode.M;
@@ -266,8 +267,11 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            // Authoritative sync: closed map must not keep BlocksGameplay true.
-            GameUi.SetBlocked(GameUi.Blocker.Map, IsOpen);
+            // Only assert while open — clearing here raced ReconcileLive / WASD.
+            if (IsOpen)
+                GameUi.SetBlocked(GameUi.Blocker.Map, true);
+            else if (open)
+                open = false;
         }
 
         void Update()

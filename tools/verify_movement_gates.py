@@ -147,11 +147,42 @@ def main() -> int:
         )
         must("WasTogglePressed()" in body or "GetKeyDown" in body, "DiverFlashlight must poll L")
     must("KeyCode.L" in flash, "DiverFlashlight must honor KeyCode.L")
+    must("EnsureBound()" in flash, "DiverFlashlight must EnsureBound before toggle")
+    if flash_upd:
+        # Comments may mention BlocksGameplay; executable gate must not.
+        code_lines = [
+            ln for ln in flash_upd.group(1).splitlines()
+            if not ln.strip().startswith("//")
+        ]
+        must(
+            not any("GameUi.BlocksGameplay" in ln for ln in code_lines),
+            "DiverFlashlight Update must ignore BlocksGameplay",
+        )
+
+    # --- Shop/map LateUpdate must not SetBlocked(false) (sticky WASD race) ---
+    for label, src in (("GearMarket", gear), ("DecorShop", decor), ("WorldMapPanel", world_map)):
+        late = re.search(r"void LateUpdate\(\)\s*\{(.*?)\n        \}", src, re.S)
+        must(late is not None, f"{label}.LateUpdate missing")
+        if late:
+            body = late.group(1)
+            must(
+                re.search(r"SetBlocked\([^)]*,\s*false\s*\)", body) is None
+                and "SetBlocked(GameUi.Blocker.Map, IsOpen)" not in body
+                and "SetBlocked(GameUi.Blocker.GearMarket, IsOpen)" not in body
+                and "SetBlocked(GameUi.Blocker.DecorShop, IsOpen)" not in body,
+                f"{label}.LateUpdate must not clear mask / sync IsOpen directly",
+            )
+            must("IsOpen" in body and "SetBlocked" in body, f"{label}.LateUpdate must assert only while open")
+
+    tail = read(ROOT / "Assets/Scripts/UI/UiGateTail.cs")
+    must("ReconcileUiGateLate" in tail or "ReconcileUiGate" in tail, "UiGateTail must late-reconcile UI mask")
+    must("DefaultExecutionOrder(1000)" in tail, "UiGateTail must run after shop LateUpdates")
 
     # --- Path summary when map closed ---
     print("PATH (map closed → walk):")
     print("  Update: ReconcileUiGate() → mask=0 → SampleMoveInput(GetKey)")
     print("  FixedUpdate: ReconcileUiGate() → !BlocksGameplay → ApplyThrust()")
+    print("  LateUpdate(UiGateTail@1000): ReconcileUiGateLate() clears sticky shop/map bits")
     print("  ApplyThrust: Submersion < shoreMoveSubmersionMax → ApplyShoreMove → body+transform.position (XZ)")
     print("  ApplyThrust: else → ApplySwimMove → AddForce")
     print("PATH (hotkeys):")

@@ -6,6 +6,7 @@ namespace UnderwaterDiving
     /// Minimal head/camera-forward torch. Toggle with L (F is used by shops).
     /// Uses legacy Input; project has no Input System package (activeInputHandler=Input Manager).
     /// </summary>
+    [DefaultExecutionOrder(50)] // After SwimController reconcile; never gate on BlocksGameplay
     public class DiverFlashlight : MonoBehaviour
     {
         public static DiverFlashlight Instance { get; private set; }
@@ -17,6 +18,7 @@ namespace UnderwaterDiving
 
         Light spot;
         bool isOn;
+        bool toggleQueued;
 
         public bool IsOn => isOn;
 
@@ -24,6 +26,15 @@ namespace UnderwaterDiving
         {
             if (cameraPivot == null)
                 return;
+
+            // Reuse existing spot if Bind is called again after EnsureBound / scene rebuild.
+            if (spot != null)
+            {
+                spot.transform.SetParent(cameraPivot, false);
+                spot.transform.localPosition = new Vector3(0.08f, -0.05f, 0.12f);
+                spot.transform.localRotation = Quaternion.identity;
+                return;
+            }
 
             var go = new GameObject("Flashlight");
             go.transform.SetParent(cameraPivot, false);
@@ -56,12 +67,30 @@ namespace UnderwaterDiving
             // L must not depend on GameUi.BlocksGameplay: WASD agents left that mask
             // sticky across Update-order races, which silently killed the torch while
             // shops/map were already closed. Light toggle is harmless over UI.
+            if (WasTogglePressed())
+                toggleQueued = true;
+
             EnsureBound();
             if (spot == null)
                 return;
 
-            if (WasTogglePressed())
+            if (toggleQueued)
+            {
+                toggleQueued = false;
                 SetOn(!isOn);
+            }
+        }
+
+        void LateUpdate()
+        {
+            // Second chance same frame if Bind failed in Update (pivot not ready yet).
+            if (!toggleQueued)
+                return;
+            EnsureBound();
+            if (spot == null)
+                return;
+            toggleQueued = false;
+            SetOn(!isOn);
         }
 
         void EnsureBound()
@@ -70,7 +99,14 @@ namespace UnderwaterDiving
                 return;
             var swim = SwimController.Instance;
             if (swim != null && swim.CameraPivot != null)
+            {
                 Bind(swim.CameraPivot);
+                return;
+            }
+            // Fallback: any camera under the diver.
+            var cam = GetComponentInChildren<Camera>();
+            if (cam != null)
+                Bind(cam.transform);
         }
 
         bool WasTogglePressed()

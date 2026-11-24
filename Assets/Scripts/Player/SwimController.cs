@@ -11,10 +11,14 @@ namespace UnderwaterDiving
     /// cancelled by OceanFloor MeshCollider contact resolution.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
-    [DefaultExecutionOrder(-100)] // ReconcileUiGate before map/flashlight/shop Updates
+    [DefaultExecutionOrder(-100)] // Update reconcile before map/flashlight/shop Updates
     public class SwimController : MonoBehaviour
     {
         public static SwimController Instance { get; private set; }
+
+        /// <summary>Cached coral stalls — FindObjectsByType every FixedUpdate was slow and race-prone.</summary>
+        static CoralDiveShop[] cachedCoralShops;
+        static int coralShopCacheFrame = -1;
 
         [Header("Look")]
         [SerializeField] Transform cameraPivot;
@@ -134,7 +138,7 @@ namespace UnderwaterDiving
         /// <summary>
         /// Absolute UI gate from live panel flags — closed map/shop can never leave thrust gated.
         /// </summary>
-        void ReconcileUiGate()
+        public void ReconcileUiGate()
         {
             bool map = WorldMapPanel.Instance != null && WorldMapPanel.Instance.IsOpen;
             bool gear = GearMarket.Instance != null && GearMarket.Instance.IsOpen;
@@ -145,7 +149,12 @@ namespace UnderwaterDiving
 
         static bool AnyCoralShopOpen()
         {
-            var shops = Object.FindObjectsByType<CoralDiveShop>(FindObjectsSortMode.None);
+            if (cachedCoralShops == null || coralShopCacheFrame != Time.frameCount / 30)
+            {
+                cachedCoralShops = Object.FindObjectsByType<CoralDiveShop>(FindObjectsSortMode.None);
+                coralShopCacheFrame = Time.frameCount / 30;
+            }
+            var shops = cachedCoralShops;
             for (int i = 0; i < shops.Length; i++)
             {
                 if (shops[i] != null && shops[i].IsOpen)
@@ -153,6 +162,11 @@ namespace UnderwaterDiving
             }
             return false;
         }
+
+        /// <summary>
+        /// Runs after shop LateUpdates (via UiGateTail) so a closed stall cannot leave mask sticky.
+        /// </summary>
+        public void ReconcileUiGateLate() => ReconcileUiGate();
 
         /// <summary>
         /// Lift out of sand / shop decks / reef rocks so contact constraints cannot cancel WASD.
