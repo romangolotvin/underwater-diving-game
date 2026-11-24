@@ -199,10 +199,17 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            // Shared CoralShop bit: only assert when this stall is open.
-            // Absolute clear of stale bits is SwimController → GameUi.ReconcileLive.
+            // Shared CoralShop bit across many stalls: never SetBlocked(false) here —
+            // that would clear the bit while another stall is still open.
+            // Closed stalls rely on SwimController → GameUi.ReconcileLive (absolute mask).
+            // Only refresh the assert while this stall is visibly open.
             if (IsOpen)
                 GameUi.SetBlocked(GameUi.Blocker.CoralShop, true);
+            else if (open)
+            {
+                // open stuck true with inactive panel — heal local flag; Reconcile clears mask.
+                open = false;
+            }
         }
 
         void Cycle(int delta)

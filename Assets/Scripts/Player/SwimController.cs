@@ -7,7 +7,8 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// First-person underwater swimming with buoyancy, quadratic drag, and tuned thrust.
-    /// Shore/wade WASD uses Rigidbody.MovePosition so PhysX contact cannot cancel movement.
+    /// Shore/wade WASD writes body+transform position directly — MovePosition is still
+    /// cancelled by OceanFloor MeshCollider contact resolution.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [DefaultExecutionOrder(-100)] // ReconcileUiGate before map/flashlight/shop Updates
@@ -30,7 +31,7 @@ namespace UnderwaterDiving
         [SerializeField] float maxSprintSpeed = 11f;
         [SerializeField] float aboveWaterMaxSpeed = 6.5f;
         [SerializeField] float jumpForce = 6.5f;
-        [Tooltip("Below this submersion, WASD uses MovePosition (PhysX cannot cancel). Above = swim AddForce.")]
+        [Tooltip("Below this submersion, WASD teleports XZ on body/transform (PhysX cannot cancel). Above = swim AddForce.")]
         [SerializeField] float shoreMoveSubmersionMax = 0.55f;
 
         [Header("Buoyancy & Drag")]
@@ -479,8 +480,8 @@ namespace UnderwaterDiving
                 forceMul *= suit.SwimSpeedMultiplier;
 
             // Beach + wade: PhysX contact on the coarse OceanFloor MeshCollider cancels
-            // AddForce / linearVelocity every step. MovePosition is the authoritative XZ write.
-            // Only use swim forces once meaningfully submerged.
+            // AddForce / linearVelocity / MovePosition every step. Direct body+transform
+            // position writes are the authoritative XZ path. Swim forces only when submerged.
             if (Submersion < shoreMoveSubmersionMax)
                 ApplyShoreMove(raw, forceMul);
             else
@@ -533,7 +534,9 @@ namespace UnderwaterDiving
                 grounded = true;
             }
 
-            body.MovePosition(p);
+            // Direct write — do NOT use MovePosition here; contact solver walks it back.
+            body.position = p;
+            transform.position = p;
 
             float yVel = body.linearVelocity.y;
             if (jumpQueued)
@@ -547,6 +550,7 @@ namespace UnderwaterDiving
                 yVel = 0f;
             }
 
+            // Velocity keeps jump/gravity coherent; XZ displace already applied above.
             body.linearVelocity = new Vector3(wishVel.x, yVel, wishVel.z);
             body.WakeUp();
         }

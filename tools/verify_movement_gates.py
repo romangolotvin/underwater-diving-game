@@ -5,7 +5,7 @@ Static gate check for WASD / ApplyThrust (no Unity Play Mode).
 Asserts:
 1. FixedUpdate calls ApplyThrust only behind !GameUi.BlocksGameplay.
 2. Update reconciles UI before the BlocksGameplay early-return.
-3. Shore path uses Rigidbody.MovePosition (PhysX cannot cancel).
+3. Shore path writes body.position + transform.position (MovePosition is cancelled by PhysX).
 4. Closed map/shop IsOpen expressions cannot force BlocksGameplay true alone.
 5. SampleMoveInput prefers GetKey over axes.
 6. M map toggle must not gate Open on BlocksGameplay.
@@ -79,7 +79,6 @@ def main() -> int:
     # --- ApplyThrust shore vs swim ---
     must("ApplyShoreMove" in swim, "ApplyShoreMove missing")
     must("ApplySwimMove" in swim, "ApplySwimMove missing")
-    must("body.MovePosition" in swim, "Shore move must use Rigidbody.MovePosition")
     must(
         re.search(r"if\s*\(\s*Submersion\s*<\s*shoreMoveSubmersionMax\s*\)", swim) is not None,
         "ApplyThrust must branch on Submersion < shoreMoveSubmersionMax",
@@ -90,6 +89,11 @@ def main() -> int:
         must(m is not None, f"{name} body not found")
         if m:
             must("return;" not in m.group(1), f"{name} must not early-return (always applies intent)")
+            if name == "ApplyShoreMove":
+                body = m.group(1)
+                must("body.position = p" in body, "ApplyShoreMove must write body.position")
+                must("transform.position = p" in body, "ApplyShoreMove must write transform.position")
+                must(".MovePosition(" not in body, "ApplyShoreMove must NOT call MovePosition (PhysX cancels it)")
 
     # --- Input GetKey first ---
     sample = re.search(r"static Vector3 SampleMoveInput\(\)\s*\{(.*?)\n        \}", swim, re.S)
@@ -148,7 +152,7 @@ def main() -> int:
     print("PATH (map closed → walk):")
     print("  Update: ReconcileUiGate() → mask=0 → SampleMoveInput(GetKey)")
     print("  FixedUpdate: ReconcileUiGate() → !BlocksGameplay → ApplyThrust()")
-    print("  ApplyThrust: Submersion < shoreMoveSubmersionMax → ApplyShoreMove → MovePosition(XZ)")
+    print("  ApplyThrust: Submersion < shoreMoveSubmersionMax → ApplyShoreMove → body+transform.position (XZ)")
     print("  ApplyThrust: else → ApplySwimMove → AddForce")
     print("PATH (hotkeys):")
     print("  M: WorldMapPanel toggles Open/Close (no BlocksGameplay gate)")
