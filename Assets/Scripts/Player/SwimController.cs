@@ -238,7 +238,8 @@ namespace UnderwaterDiving
                 return;
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
-            if (!GameUi.AnyModalPanelOpen() && cursorLocked)
+            // Re-assert lock on focus regain unless a live modal panel owns the cursor.
+            if (!GameUi.AnyModalPanelOpen())
                 LockCursor(true);
         }
 
@@ -246,16 +247,19 @@ namespace UnderwaterDiving
         {
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
+            if (AudioListener.pause)
+                AudioListener.pause = false;
 
             // Align mask/cursor; BlocksGameplay is live panel activeInHierarchy (not sticky bits).
             ReconcileUiGate();
 
             // Sample move every frame — WASD held keys are reliable here; FixedUpdate alone can miss.
+            // Safe wrappers: GetAxis must never abort this Update (that killed look+move together).
             cachedMoveInput = SampleMoveInput();
 
-            // Gate ONLY on explicit open panels — never a leftover bitmask.
+            // Gate ONLY on panels that are literally activeInHierarchy — never cursor lock, never sticky mask.
             bool modalOpen = GameUi.AnyModalPanelOpen();
-            if (!modalOpen && Input.GetKeyDown(KeyCode.Space) && Submersion < 0.2f && !IsUnderwater)
+            if (!modalOpen && LegacyInput.KeyDown(KeyCode.Space) && Submersion < 0.2f && !IsUnderwater)
                 jumpQueued = true;
 
             if (modalOpen)
@@ -265,16 +269,16 @@ namespace UnderwaterDiving
                     LockCursor(false);
                 jumpQueued = false;
                 smoothedMove = Vector3.SmoothDamp(smoothedMove, Vector3.zero, ref moveVelocityRef, inputSmoothTime);
-                return;
+                // Do NOT return before anything else fragile — look/thrust are skipped only via the gates below.
             }
-
-            HandleCursor();
-
-            // Drive look from our intent flag, not raw Cursor.lockState.
-            // Editor/player often drop lockState until a click; gating on engine state
-            // left look dead even while WASD should work.
-            if (cursorLocked)
+            else
+            {
+                HandleCursor();
+                // ALWAYS look while no modal — do not gate on cursorLocked.
+                // Editor often refuses Cursor.lockState until a Game View click; gating look on the
+                // intent flag left mouse dead after Esc / focus / UI edge cases.
                 HandleLook();
+            }
         }
 
         void FixedUpdate()
@@ -356,7 +360,8 @@ namespace UnderwaterDiving
 
             // Click-to-re-lock: any LMB while unlocked, unless over a real Button/Selectable.
             // Ignore non-interactive HUD Images/Texts that still have raycastTarget.
-            if (!cursorLocked && Input.GetMouseButtonDown(0))
+            // Prefer re-lock over opening shops/map on the same click (see ShopInteract / MapToggle).
+            if (!cursorLocked && LegacyInput.MouseButtonDown(0))
             {
                 if (!IsPointerOverInteractiveUi())
                     LockCursor(true);
@@ -405,19 +410,22 @@ namespace UnderwaterDiving
                     cameraPivot = cam.transform.parent != null ? cam.transform.parent : cam.transform;
             }
 
-            float mx = Input.GetAxisRaw("Mouse X") * mouseSensitivity;
-            float my = Input.GetAxisRaw("Mouse Y") * mouseSensitivity * (invertY ? 1f : -1f);
+            LegacyInput.ReadMouseLook(out float rawX, out float rawY);
+            float mx = rawX * mouseSensitivity;
+            float my = rawY * mouseSensitivity * (invertY ? 1f : -1f);
             yaw += mx;
             pitch = Mathf.Clamp(pitch + my, pitchMin, pitchMax);
 
             // Rigidbody owns rotation — writing transform alone is overwritten by PhysX sync.
+            // Assign body.rotation + MoveRotation so FreezeRotation cannot leave yaw stuck.
             var yawRot = Quaternion.Euler(0f, yaw, 0f);
+            transform.rotation = yawRot;
             if (body != null)
             {
+                body.rotation = yawRot;
                 body.MoveRotation(yawRot);
                 body.angularVelocity = Vector3.zero;
             }
-            transform.rotation = yawRot;
             if (cameraPivot != null)
                 cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
         }
@@ -479,7 +487,7 @@ namespace UnderwaterDiving
             Vector3 raw = cachedMoveInput;
             smoothedMove = Vector3.SmoothDamp(smoothedMove, raw, ref moveVelocityRef, inputSmoothTime);
 
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            bool sprint = LegacyInput.Key(KeyCode.LeftShift);
             float forceMul = sprint ? sprintMultiplier : 1f;
             if (suit != null)
                 forceMul *= suit.SwimSpeedMultiplier;
@@ -562,7 +570,7 @@ namespace UnderwaterDiving
 
         void ClampMaxSpeed()
         {
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            bool sprint = LegacyInput.Key(KeyCode.LeftShift);
             float max = sprint ? maxSprintSpeed : maxSwimSpeed;
             if (suit != null)
                 max *= suit.SwimSpeedMultiplier;
@@ -635,37 +643,36 @@ namespace UnderwaterDiving
 
         /// <summary>
         /// x = strafe, y = up/down, z = forward.
-        /// Keyboard GetKey is authoritative; Horizontal/Vertical axes are fallback only.
-        /// Desktop keyboard only — no mobile touch joystick in this project.
+        /// KeyCode.W/A/S/D is authoritative; Horizontal/Vertical axes are fallback only.
+        /// All axis reads go through LegacyInput so a missing axis / Input System-only
+        /// project setting cannot throw and abort Update.
         /// </summary>
         static Vector3 SampleMoveInput()
         {
-            // Hard key path first — never depend solely on axis wiring / UI navigation axes.
-            bool left = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
-            bool right = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
-            bool back = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
-            bool forward = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            bool left = LegacyInput.Key(KeyCode.A) || LegacyInput.Key(KeyCode.LeftArrow);
+            bool right = LegacyInput.Key(KeyCode.D) || LegacyInput.Key(KeyCode.RightArrow);
+            bool back = LegacyInput.Key(KeyCode.S) || LegacyInput.Key(KeyCode.DownArrow);
+            bool forward = LegacyInput.Key(KeyCode.W) || LegacyInput.Key(KeyCode.UpArrow);
 
             float x;
             float z;
             if (left || right)
                 x = (right ? 1f : 0f) - (left ? 1f : 0f);
             else
-                x = Input.GetAxisRaw("Horizontal");
+                x = LegacyInput.AxisRaw("Horizontal");
 
             if (forward || back)
                 z = (forward ? 1f : 0f) - (back ? 1f : 0f);
             else
-                z = Input.GetAxisRaw("Vertical");
+                z = LegacyInput.AxisRaw("Vertical");
 
             float y = 0f;
-            if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E))
+            if (LegacyInput.Key(KeyCode.Space) || LegacyInput.Key(KeyCode.E))
                 y += 1f;
-            if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.C))
+            if (LegacyInput.Key(KeyCode.LeftControl) || LegacyInput.Key(KeyCode.Q) || LegacyInput.Key(KeyCode.C))
                 y -= 1f;
 
-            // Mouse wheel for fine vertical trim while diving.
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            float scroll = LegacyInput.Axis("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.001f)
                 y += Mathf.Clamp(scroll * 8f, -1f, 1f);
 

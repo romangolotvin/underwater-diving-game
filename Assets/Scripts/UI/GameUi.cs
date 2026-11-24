@@ -30,18 +30,34 @@ namespace UnderwaterDiving
         /// </summary>
         public static bool BlocksGameplay => AnyModalPanelOpen();
 
-        /// <summary>Live open check used by movement/look and by <see cref="BlocksGameplay"/>.</summary>
+        /// <summary>
+        /// Live open check used by movement/look and by <see cref="BlocksGameplay"/>.
+        /// Null / missing instances ⇒ NOT blocked (empty registry must never freeze controls).
+        /// </summary>
         public static bool AnyModalPanelOpen()
         {
-            if (WorldMapPanel.Instance != null && WorldMapPanel.Instance.IsOpen)
+            // Explicit activeInHierarchy double-check — IsOpen already requires it, but
+            // defend against a stale open flag if a panel GO was destroyed mid-frame.
+            if (WorldMapPanel.Instance != null
+                && WorldMapPanel.Instance.IsOpen
+                && IsLivePanel(WorldMapPanel.Instance.PanelRoot))
                 return true;
-            if (GearMarket.Instance != null && GearMarket.Instance.IsOpen)
+            if (GearMarket.Instance != null
+                && GearMarket.Instance.IsOpen
+                && IsLivePanel(GearMarket.Instance.PanelRoot))
                 return true;
-            if (DecorShop.Instance != null && DecorShop.Instance.IsOpen)
+            if (DecorShop.Instance != null
+                && DecorShop.Instance.IsOpen
+                && IsLivePanel(DecorShop.Instance.PanelRoot))
                 return true;
             if (CoralDiveShop.AnyOpen())
                 return true;
             return false;
+        }
+
+        static bool IsLivePanel(GameObject panel)
+        {
+            return panel != null && panel.activeInHierarchy;
         }
 
         /// <summary>
@@ -49,7 +65,7 @@ namespace UnderwaterDiving
         /// </summary>
         public static bool TryConsumeEscape()
         {
-            if (!Input.GetKeyDown(KeyCode.Escape))
+            if (!LegacyInput.KeyDown(KeyCode.Escape))
                 return false;
             if (escapeConsumedFrame == Time.frameCount)
                 return false;
@@ -139,15 +155,32 @@ namespace UnderwaterDiving
         public static void ClearBlocking()
         {
             mask = 0;
-            // Heal open flags that cannot be true without a panel (boot path).
-            SyncCursorToLive();
             if (!AnyModalPanelOpen())
             {
                 lastLiveBlocked = false;
                 var swim = SwimController.Instance;
                 if (swim != null)
                     swim.LockCursor(true);
+                else
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                }
             }
+            else
+            {
+                // Force unlock edge for a still-open live modal.
+                lastLiveBlocked = false;
+                SyncCursorToLive();
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            mask = 0;
+            escapeConsumedFrame = -1;
+            lastLiveBlocked = false;
         }
     }
 }

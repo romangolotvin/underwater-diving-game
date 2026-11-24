@@ -136,6 +136,11 @@ namespace UnderwaterDiving
                 catchText.text = $"Catch {Inventory.Instance.TotalCatchCount()}/{Inventory.Instance.MaxCatchSlots()}";
 
             bool shopsOpen = GameUi.BlocksGameplay;
+            // Disable HUD raycasts while gameplay wants the cursor — prevents the first
+            // Editor Game View click from hitting «Карта» / other Selectables and opening a modal.
+            var raycaster = GetComponent<GraphicRaycaster>();
+            if (raycaster != null)
+                raycaster.enabled = shopsOpen || !swim.IsCursorLocked;
             crosshair.enabled = !shopsOpen && swim.IsUnderwater;
 
             if (shopsOpen)

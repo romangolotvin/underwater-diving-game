@@ -108,6 +108,8 @@ namespace UnderwaterDiving
         public bool PlayerNear => playerNear;
         /// <summary>True only while the market panel GameObject is active in hierarchy.</summary>
         public bool IsOpen => open && panel != null && panel.activeInHierarchy;
+        /// <summary>Panel root for <see cref="GameUi.AnyModalPanelOpen"/> live checks.</summary>
+        public GameObject PanelRoot => panel;
 
         void Open()
         {
@@ -216,11 +218,17 @@ namespace UnderwaterDiving
     {
         public static bool WantsOpen(SwimController swim)
         {
-            // F only — E is swim-up and was accidentally opening beach stalls (sticky BlocksGameplay).
-            if (Input.GetKeyDown(KeyCode.F))
+            // F — primary open (E is swim-up).
+            if (LegacyInput.KeyDown(KeyCode.F))
                 return true;
-            // On the beach (not underwater) locked-cursor click opens trade — spear owns LMB underwater.
-            if (swim != null && !swim.IsUnderwater && Input.GetMouseButtonDown(0) && swim.CanUseCombatInput)
+            // Beach click-to-open only when cursor lock is actually held by the engine.
+            // Editor often has cursorLocked intent with lockState=None until Game View click;
+            // that first click must focus/lock, not open a shop and freeze WASD/look.
+            if (swim != null
+                && !swim.IsUnderwater
+                && LegacyInput.MouseButtonDown(0)
+                && swim.CanUseCombatInput
+                && Cursor.lockState == CursorLockMode.Locked)
                 return true;
             return false;
         }

@@ -164,9 +164,18 @@ namespace UnderwaterDiving
         public bool PlayerNear => playerNear;
         /// <summary>True only while this stall's panel is live in the hierarchy.</summary>
         public bool IsOpen => open && panel != null && panel.activeInHierarchy;
+        /// <summary>Panel root for <see cref="GameUi.AnyModalPanelOpen"/> live checks.</summary>
+        public GameObject PanelRoot => panel;
 
         static CoralDiveShop[] openCache;
         static int openCacheFrame = -1;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            openCache = null;
+            openCacheFrame = -1;
+        }
 
         /// <summary>Any coral/beach-supplies stall with a visible panel.</summary>
         public static bool AnyOpen()
@@ -177,6 +186,8 @@ namespace UnderwaterDiving
                 openCacheFrame = Time.frameCount;
             }
             var shops = openCache;
+            if (shops == null || shops.Length == 0)
+                return false;
             for (int i = 0; i < shops.Length; i++)
             {
                 if (shops[i] != null && shops[i].IsOpen)

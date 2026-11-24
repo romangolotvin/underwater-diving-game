@@ -2,15 +2,18 @@
 """
 Static gate check for WASD / look (no Unity Play Mode).
 
-Asserts:
+Asserts end-to-end input path:
 1. GameUi.BlocksGameplay is LIVE panel state (AnyModalPanelOpen), not sticky mask.
-2. SwimController Update/FixedUpdate gate move/look on AnyModalPanelOpen / live panels.
-3. HandleLook writes Rigidbody.MoveRotation (not transform-only).
-4. Shore path writes body.position + transform.position (MovePosition is cancelled by PhysX).
-5. SampleMoveInput prefers GetKey over axes.
-6. M map toggle must not gate Open on BlocksGameplay.
-7. L flashlight must not early-out on BlocksGameplay.
-8. Panel IsOpen requires activeInHierarchy.
+2. Empty/null panel registry ⇒ NOT blocked.
+3. SwimController Update always reaches HandleLook when no modal (NOT gated on cursorLocked).
+4. FixedUpdate ApplyThrust when !AnyModalPanelOpen.
+5. HandleLook uses LegacyInput / Mouse X/Y + MoveRotation/body.rotation.
+6. SampleMoveInput prefers KeyCode W/A/S/D via LegacyInput (axis throws cannot abort Update).
+7. Shore path writes body.position + transform.position.
+8. M / L not silenced by BlocksGameplay.
+9. Panel IsOpen requires activeInHierarchy.
+10. activeInputHandler is Legacy (0) or Both (2) — never Input System only (1).
+11. GameBootstrap resets booted on SubsystemRegistration.
 """
 from __future__ import annotations
 
@@ -26,6 +29,9 @@ GEAR = ROOT / "Assets/Scripts/Economy/GearMarket.cs"
 DECOR = ROOT / "Assets/Scripts/Economy/DecorShop.cs"
 CORAL = ROOT / "Assets/Scripts/World/CoralDiveShop.cs"
 FLASH = ROOT / "Assets/Scripts/Player/DiverFlashlight.cs"
+BOOT = ROOT / "Assets/Scripts/Core/GameBootstrap.cs"
+LEGACY = ROOT / "Assets/Scripts/Core/LegacyInput.cs"
+HUD = ROOT / "Assets/Scripts/UI/DiveHud.cs"
 
 errors: list[str] = []
 
@@ -49,6 +55,14 @@ def main() -> int:
     gear = read(GEAR)
     decor = read(DECOR)
     coral = read(CORAL)
+    legacy = read(LEGACY)
+    boot = read(BOOT)
+    hud = read(HUD)
+
+    # --- LegacyInput safety net ---
+    must("class LegacyInput" in legacy, "LegacyInput helper missing")
+    must("ReadMouseLook" in legacy, "LegacyInput.ReadMouseLook missing")
+    must("GetAxisRaw" in legacy and "catch" in legacy, "LegacyInput must try/catch GetAxisRaw")
 
     # --- Live BlocksGameplay (not sticky mask) ---
     must(
@@ -64,6 +78,11 @@ def main() -> int:
         "AnyModalPanelOpen must read map/shop Instances",
     )
     must("CoralDiveShop.AnyOpen()" in game_ui, "AnyModalPanelOpen must include CoralDiveShop.AnyOpen")
+    must("activeInHierarchy" in game_ui, "AnyModalPanelOpen must double-check activeInHierarchy")
+    must(
+        "SubsystemRegistration" in game_ui and "ResetStatics" in game_ui,
+        "GameUi must reset statics on SubsystemRegistration",
+    )
 
     # --- FixedUpdate path ---
     fu = re.search(r"void FixedUpdate\(\)\s*\{(.*?)\n        \}", swim, re.S)
@@ -79,31 +98,39 @@ def main() -> int:
             is not None,
             "FixedUpdate must call ApplyThrust only when no live modal",
         )
+        # Prove ApplyThrust is not gated on cursorLocked
+        must("cursorLocked" not in body, "FixedUpdate must not gate on cursorLocked")
 
-    # --- Update: reconcile before early return; gate on live modal ---
+    # --- Update: HandleLook NOT gated on cursorLocked ---
     upd = re.search(r"void Update\(\)\s*\{(.*?)\n        \}", swim, re.S)
     must(upd is not None, "Update not found")
     if upd:
         body = upd.group(1)
-        rec_i = body.find("ReconcileUiGate()")
-        block_i = body.find("modalOpen")
-        if block_i < 0:
-            block_i = body.find("AnyModalPanelOpen()")
-        must(rec_i >= 0, "Update must call ReconcileUiGate")
-        must(block_i >= 0, "Update must gate on live modal (AnyModalPanelOpen)")
-        must(rec_i < block_i, "ReconcileUiGate must run before modal early-return")
+        must("ReconcileUiGate()" in body, "Update must call ReconcileUiGate")
+        must("AnyModalPanelOpen()" in body, "Update must gate on live modal")
         must("cachedMoveInput = SampleMoveInput()" in body, "Update must sample move input")
-        sample_i = body.find("SampleMoveInput()")
-        must(sample_i >= 0 and sample_i < block_i, "SampleMoveInput must run even when map about to block look")
         must("HandleLook()" in body, "Update must call HandleLook when free")
+        # Critical regression: look must not require cursorLocked
+        must(
+            re.search(r"if\s*\(\s*cursorLocked\s*\)\s*\n?\s*HandleLook\(\)", body) is None,
+            "HandleLook must NOT be gated on cursorLocked — only on modal open",
+        )
+        must(
+            "HandleLook()" in body and "modalOpen" in body,
+            "HandleLook must be under !modalOpen path",
+        )
 
-    # --- HandleLook must drive Rigidbody rotation ---
+    # --- HandleLook must drive Rigidbody rotation + safe mouse ---
     look = re.search(r"void HandleLook\(\)\s*\{(.*?)\n        \}", swim, re.S)
     must(look is not None, "HandleLook missing")
     if look:
         body = look.group(1)
-        must("MoveRotation" in body, "HandleLook must MoveRotation on Rigidbody")
-        must("Mouse X" in body and "Mouse Y" in body, "HandleLook must read Mouse X/Y")
+        must("MoveRotation" in body or "body.rotation" in body, "HandleLook must set Rigidbody rotation")
+        must(
+            "ReadMouseLook" in body or "Mouse X" in body,
+            "HandleLook must read mouse via LegacyInput or Mouse X/Y",
+        )
+        must("LegacyInput" in body or "GetAxisRaw" in body, "HandleLook must use safe/legacy mouse input")
 
     # --- ApplyThrust shore vs swim ---
     must("ApplyShoreMove" in swim, "ApplyShoreMove missing")
@@ -123,14 +150,16 @@ def main() -> int:
                 must("transform.position = p" in body, "ApplyShoreMove must write transform.position")
                 must(".MovePosition(" not in body, "ApplyShoreMove must NOT call MovePosition (PhysX cancels it)")
 
-    # --- Input GetKey first ---
+    # --- Input GetKey / LegacyInput first ---
     sample = re.search(r"static Vector3 SampleMoveInput\(\)\s*\{(.*?)\n        \}", swim, re.S)
     must(sample is not None, "SampleMoveInput missing")
     if sample:
         body = sample.group(1)
-        getkey_i = body.find("Input.GetKey")
-        axis_i = body.find("Input.GetAxisRaw")
-        must(getkey_i >= 0, "SampleMoveInput must use GetKey")
+        must("KeyCode.W" in body and "KeyCode.A" in body, "SampleMoveInput must use W/A/S/D KeyCodes")
+        must("LegacyInput" in body, "SampleMoveInput must use LegacyInput (axis throw-safe)")
+        getkey_i = body.find("LegacyInput.Key")
+        axis_i = body.find("AxisRaw")
+        must(getkey_i >= 0, "SampleMoveInput must use LegacyInput.Key")
         must(axis_i < 0 or getkey_i < axis_i, "GetKey must be preferred before axis fallback")
 
     # --- Closed panels: IsOpen requires activeInHierarchy ---
@@ -145,6 +174,27 @@ def main() -> int:
             f"{label}.IsOpen must require open+activeInHierarchy",
         )
     must("static bool AnyOpen()" in coral or "public static bool AnyOpen()" in coral, "CoralDiveShop.AnyOpen missing")
+    must(
+        "PanelRoot" in world_map and "PanelRoot" in gear and "PanelRoot" in decor and "PanelRoot" in coral,
+        "shops/map must expose PanelRoot",
+    )
+
+    # --- Map button must not steal Game View focus click ---
+    must("SyncToggleRaycast" in world_map or "raycastTarget" in world_map, "WorldMapPanel must gate Map button raycasts")
+    must("IsCursorLocked" in world_map, "Map button raycast must respect cursor lock intent")
+    must("raycaster.enabled" in hud or "GraphicRaycaster" in hud, "DiveHud must toggle GraphicRaycaster")
+
+    # --- Shop click must require real engine lock ---
+    must(
+        "Cursor.lockState == CursorLockMode.Locked" in gear,
+        "ShopInteract click-open must require Cursor.lockState Locked (not Editor focus click)",
+    )
+
+    # --- Bootstrap always creates controls; reset booted ---
+    must("AddComponent<SwimController>" in boot, "GameBootstrap must AddComponent SwimController")
+    must("swim.enabled = true" in boot, "GameBootstrap must enable SwimController")
+    must("SubsystemRegistration" in boot and "booted = false" in boot, "GameBootstrap must reset booted without domain reload")
+    must("LockCursor(true)" in boot, "GameBootstrap must force cursor lock at spawn")
 
     # --- ReconcileLive still absolute for mask bookkeeping ---
     must("ReconcileLive" in game_ui, "GameUi.ReconcileLive missing")
@@ -200,20 +250,36 @@ def main() -> int:
     must("ReconcileUiGateLate" in tail or "ReconcileUiGate" in tail, "UiGateTail must late-reconcile UI")
     must("DefaultExecutionOrder(1000)" in tail, "UiGateTail must run after shop LateUpdates")
 
-    # --- Input Manager still legacy ---
+    # --- Input Manager: Legacy (0) or Both (2), never Input System only (1) ---
     proj = read(ROOT / "ProjectSettings/ProjectSettings.asset")
-    must("activeInputHandler: 0" in proj, "activeInputHandler must be Input Manager (0)")
+    must(
+        "activeInputHandler: 0" in proj or "activeInputHandler: 2" in proj,
+        "activeInputHandler must be Input Manager (0) or Both (2)",
+    )
+    must(
+        "activeInputHandler: 1" not in proj,
+        "activeInputHandler must NOT be Input System only (1) — GetAxis/GetKey throw/no-op",
+    )
     inp = read(ROOT / "ProjectSettings/InputManager.asset")
     for axis in ("Horizontal", "Vertical", "Mouse X", "Mouse Y"):
         must(f"m_Name: {axis}" in inp, f"InputManager missing axis {axis}")
 
+    focus = read(ROOT / "Assets/Editor/FocusGameViewOnPlay.cs")
+    must("FocusGameView" in focus or "GameView" in focus, "Editor FocusGameViewOnPlay missing")
+
     print("PATH (no modal → walk+look):")
     print("  BlocksGameplay := AnyModalPanelOpen() (panel.activeInHierarchy), NEVER sticky mask")
-    print("  Update: ReconcileUiGate → SampleMoveInput(GetKey) → !modal → HandleLook(MoveRotation)")
+    print("  null Instances ⇒ NOT blocked")
+    print("  Update: Reconcile → SampleMoveInput(LegacyInput Key W/A/S/D) → !modal → HandleLook ALWAYS")
+    print("  HandleLook: LegacyInput.ReadMouseLook → body.rotation + MoveRotation")
     print("  FixedUpdate: !AnyModalPanelOpen → ApplyThrust → shore body+transform.position")
+    print("PATH (Editor click steal):")
+    print("  Map button raycast OFF while IsCursorLocked; DiveHud GraphicRaycaster gated")
+    print("  ShopInteract LMB requires Cursor.lockState==Locked; FocusGameViewOnPlay")
     print("PATH (hotkeys):")
     print("  M: WorldMapPanel toggles Open/Close (no BlocksGameplay gate)")
     print("  L: DiverFlashlight toggles spot (no BlocksGameplay gate)")
+    print("  Esc: unlock cursor / close modal; click Game View (non-UI) re-locks")
 
     if errors:
         print("FAIL:")

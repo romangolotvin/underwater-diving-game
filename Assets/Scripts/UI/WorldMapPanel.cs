@@ -31,6 +31,9 @@ namespace UnderwaterDiving
         /// <summary>True only while the map panel is actually visible in the hierarchy.</summary>
         public bool IsOpen => open && panelRoot != null && panelRoot.activeInHierarchy;
 
+        /// <summary>Panel root for <see cref="GameUi.AnyModalPanelOpen"/> live checks.</summary>
+        public GameObject PanelRoot => panelRoot;
+
         public static WorldMapPanel Attach(Transform hudRoot)
         {
             ShopUiUtil.EnsureEventSystem();
@@ -272,6 +275,26 @@ namespace UnderwaterDiving
                 GameUi.SetBlocked(GameUi.Blocker.Map, true);
             else if (open)
                 open = false;
+
+            // While gameplay wants a locked cursor, disable the on-screen Map button so the
+            // first Game View click (Editor focus) cannot open the map and freeze WASD/look.
+            // M key still toggles. Button works again after Esc unlocks the cursor.
+            SyncToggleRaycast();
+        }
+
+        void SyncToggleRaycast()
+        {
+            if (toggleButton == null)
+                return;
+            var swim = SwimController.Instance;
+            // Allow HUD map button only when map already open, or cursor intentionally unlocked.
+            // While gameplay wants lock (even if Editor refused lockState), the first Game View
+            // click must not open the map and freeze WASD/look — use M instead.
+            bool allowClick = IsOpen || swim == null || !swim.IsCursorLocked;
+            toggleButton.interactable = allowClick;
+            var img = toggleButton.targetGraphic;
+            if (img != null)
+                img.raycastTarget = allowClick;
         }
 
         void Update()
@@ -283,7 +306,7 @@ namespace UnderwaterDiving
                 return;
             }
 
-            if (!Input.GetKeyDown(MapToggleKey))
+            if (!LegacyInput.KeyDown(MapToggleKey))
                 return;
 
             // M must toggle from live open state — never from GameUi.BlocksGameplay.

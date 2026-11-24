@@ -11,6 +11,16 @@ namespace UnderwaterDiving
     {
         static bool booted;
 
+        /// <summary>
+        /// Runs even when Enter Play Mode Options disable domain reload — otherwise
+        /// <see cref="booted"/> stays true and AutoBoot skips creating the player/controls.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            booted = false;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoBoot()
         {
@@ -32,6 +42,8 @@ namespace UnderwaterDiving
             GameUi.ClearBlocking();
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
+            if (AudioListener.pause)
+                AudioListener.pause = false;
             BuildWorld();
         }
 
@@ -230,11 +242,15 @@ namespace UnderwaterDiving
             var swim = player.AddComponent<SwimController>();
             swim.enabled = true;
             swim.SetCameraPivot(camPivot);
+            // Play start: force lock so look/WASD path is armed (Editor may refuse until Game View focus).
+            swim.LockCursor(true);
 
             var gun = player.AddComponent<Speargun>();
+            gun.enabled = true;
             gun.Bind(camPivot);
 
             var torch = player.AddComponent<DiverFlashlight>();
+            torch.enabled = true;
             torch.Bind(camPivot);
 
             BubbleParticles.CreateAroundPlayer(player.transform);
