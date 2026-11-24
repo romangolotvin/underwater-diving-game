@@ -3,7 +3,7 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Zone flavour: nearshore seaweed, mid kelp, deep silt pillars. No perimeter walls.
+    /// Zone flavour: nearshore seaweed close to the curved bay, mid kelp, deep silt pillars.
     /// </summary>
     public static class DepthZoneVisuals
     {
@@ -23,17 +23,16 @@ namespace UnderwaterDiving
                 Color.white, 0.08f, 0.04f, new Vector2(2f, 2f));
 
             var rng = new System.Random(303);
-            float shoreZ = DiveWorldConfig.BeachShoreZ;
 
-            // Shallow seaweed beds just off the beach (visible on the first swim-in).
-            for (int i = 0; i < 70; i++)
+            // Dense seaweed beds immediately past the curved waterline (short entrance).
+            for (int i = 0; i < 95; i++)
             {
-                float x = (float)(rng.NextDouble() * 220.0 - 110.0);
-                float z = shoreZ + 25f + (float)(rng.NextDouble() * 280.0);
+                float x = (float)(rng.NextDouble() * 170.0 - 85.0);
+                float z = DiveWorldConfig.ShorelineZ(x) + 6f + (float)(rng.NextDouble() * 95.0);
                 if (!Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 0.5f, z), Vector3.down, out var hit, 40f))
                     continue;
                 float depth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
-                if (depth < 1.0f || depth > DiveWorldConfig.ShallowMaxDepth * 0.85f)
+                if (depth < 0.8f || depth > DiveWorldConfig.ShallowMaxDepth * 0.85f)
                     continue;
 
                 var weed = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -52,7 +51,7 @@ namespace UnderwaterDiving
             for (int i = 0; i < kelpCount; i++)
             {
                 float x = (float)(rng.NextDouble() * 400.0 - 200.0);
-                float z = shoreZ + 350f + (float)(rng.NextDouble() * 900.0);
+                float z = DiveWorldConfig.BeachShoreZ + 280f + (float)(rng.NextDouble() * 900.0);
                 if (!Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out var hit, 80f))
                     continue;
                 float depth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
@@ -76,7 +75,7 @@ namespace UnderwaterDiving
                 float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
                 float rad = 400f + Mathf.Sqrt((float)rng.NextDouble()) * (DiveWorldConfig.SoftBoundaryRadius * 0.55f);
                 float x = Mathf.Cos(ang) * rad;
-                float z = shoreZ + 1100f + Mathf.Sin(ang) * rad * 0.35f;
+                float z = DiveWorldConfig.BeachShoreZ + 1100f + Mathf.Sin(ang) * rad * 0.35f;
                 if (!Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out var hit, 120f))
                     continue;
                 float depth = DiveWorldConfig.WaterSurfaceY - hit.point.y;

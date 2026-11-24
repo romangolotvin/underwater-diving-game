@@ -144,15 +144,15 @@ namespace UnderwaterDiving
             }
             else if (GearMarket.Instance != null && GearMarket.Instance.PlayerNear)
             {
-                hintText.text = "F — Harbor Market";
+                hintText.text = "F / click — Harbor Market";
             }
             else if (DecorShop.Instance != null && DecorShop.Instance.PlayerNear)
             {
-                hintText.text = "F — Outfitter";
+                hintText.text = "F / click — Outfitter";
             }
             else if (NearCoralShop())
             {
-                hintText.text = "F — Coral Vendor";
+                hintText.text = "F / click — Vendor";
             }
             else
             {

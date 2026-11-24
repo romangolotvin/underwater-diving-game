@@ -4,7 +4,7 @@ using UnityEngine.UI;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Open-ocean gear market on a submerged platform. Sell catch, buy upgrades.
+    /// Harbor market on the beach shop arc. Sell catch, buy upgrades.
     /// </summary>
     public class GearMarket : MonoBehaviour
     {
@@ -19,7 +19,8 @@ namespace UnderwaterDiving
 
         public static GearMarket Create(Transform parent)
         {
-            var go = BuildStall(parent, DiveWorldConfig.GearMarketPos, "GearMarket", new Color(0.2f, 0.45f, 0.55f));
+            var go = BuildStall(parent, DiveWorldConfig.GearMarketPos, "GearMarket",
+                new Color(0.2f, 0.45f, 0.55f), DiveWorldConfig.GearMarketYaw);
             var m = go.AddComponent<GearMarket>();
             m.BuildUi();
             return m;
@@ -27,8 +28,12 @@ namespace UnderwaterDiving
 
         public static GameObject BuildStall(Transform parent, Vector3 pos, string name, Color tint)
         {
-            // Open Ocean: underwater platforms. (Shore piers are for country sites later.)
-            return UnderwaterShopPlatform.Build(parent, pos, name, tint);
+            return BuildStall(parent, pos, name, tint, 0f);
+        }
+
+        public static GameObject BuildStall(Transform parent, Vector3 pos, string name, Color tint, float yaw)
+        {
+            return UnderwaterShopPlatform.Build(parent, pos, name, tint, yaw);
         }
 
         void Awake() => Instance = this;
@@ -92,7 +97,7 @@ namespace UnderwaterDiving
                 playerNear = d <= DiveWorldConfig.ShopInteractRadius;
             }
 
-            if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))
+            if (playerNear && !open && !GameUi.BlocksGameplay && ShopInteract.WantsOpen(swim))
                 Open();
             if (open && GameUi.TryConsumeEscape())
                 Close();
@@ -184,6 +189,20 @@ namespace UnderwaterDiving
             sb.AppendLine();
             sb.AppendLine("Line Length / Harpoon Edge / Harpoon Mass upgrade the speargun.");
             listText.text = sb.ToString();
+        }
+    }
+
+    /// <summary>Shared F / click open for beach and stall shops.</summary>
+    public static class ShopInteract
+    {
+        public static bool WantsOpen(SwimController swim)
+        {
+            if (Input.GetKeyDown(KeyCode.F) || Input.GetKeyDown(KeyCode.E))
+                return true;
+            // On the beach (not underwater) locked-cursor click opens trade — spear owns LMB underwater.
+            if (swim != null && !swim.IsUnderwater && Input.GetMouseButtonDown(0) && swim.CanUseCombatInput)
+                return true;
+            return false;
         }
     }
 }

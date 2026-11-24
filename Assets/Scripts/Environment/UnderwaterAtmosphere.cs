@@ -4,6 +4,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Depth-based fog/light plus day/night tint. Distance fog doubles as soft world edge.
+    /// Surface Maldives: bright ambient, turquoise shallow fog, long shore vista.
     /// </summary>
     public class UnderwaterAtmosphere : MonoBehaviour
     {
@@ -41,12 +42,13 @@ namespace UnderwaterDiving
 
             if (!under)
             {
-                Color dayFog = new Color(0.55f, 0.72f, 0.88f);
-                Color nightFog = new Color(0.08f, 0.12f, 0.22f);
+                // Bright tropical shore air.
+                Color dayFog = new Color(0.62f, 0.82f, 0.95f);
+                Color nightFog = new Color(0.1f, 0.14f, 0.26f);
                 fog = Color.Lerp(nightFog, dayFog, day);
-                density = Mathf.Lerp(0.0035f, 0.012f, edgeFog);
-                ambient = Color.Lerp(new Color(0.12f, 0.16f, 0.28f), new Color(0.58f, 0.65f, 0.72f), day);
-                sunMul = Mathf.Lerp(0.15f, 1.2f, day);
+                density = Mathf.Lerp(0.0018f, 0.01f, edgeFog);
+                ambient = Color.Lerp(new Color(0.16f, 0.2f, 0.32f), new Color(0.78f, 0.86f, 0.94f), day);
+                sunMul = Mathf.Lerp(0.2f, 1.55f, day);
             }
             else
             {
@@ -54,10 +56,11 @@ namespace UnderwaterDiving
                 switch (band)
                 {
                     case DepthBand.Shallow:
-                        fog = Color.Lerp(new Color(0.12f, 0.48f, 0.58f), new Color(0.06f, 0.28f, 0.4f), depth / DiveWorldConfig.ShallowMaxDepth);
-                        density = Mathf.Lerp(0.022f, 0.038f, depth / DiveWorldConfig.ShallowMaxDepth);
-                        ambient = new Color(0.18f, 0.42f, 0.48f);
-                        sunMul = 0.85f;
+                        // Turquoise Maldives shallows.
+                        fog = Color.Lerp(new Color(0.18f, 0.72f, 0.78f), new Color(0.08f, 0.42f, 0.55f), depth / DiveWorldConfig.ShallowMaxDepth);
+                        density = Mathf.Lerp(0.016f, 0.032f, depth / DiveWorldConfig.ShallowMaxDepth);
+                        ambient = new Color(0.28f, 0.58f, 0.62f);
+                        sunMul = 1.05f;
                         break;
                     case DepthBand.Mid:
                         fog = Color.Lerp(new Color(0.05f, 0.22f, 0.36f), new Color(0.03f, 0.1f, 0.2f),
@@ -89,10 +92,10 @@ namespace UnderwaterDiving
 
             if (sun != null)
             {
-                Color daySun = new Color(1f, 0.96f, 0.88f);
+                Color daySun = new Color(1f, 0.98f, 0.9f);
                 Color nightSun = new Color(0.35f, 0.45f, 0.75f);
                 Color baseSun = Color.Lerp(nightSun, daySun, day);
-                sun.color = Color.Lerp(baseSun, new Color(0.45f, 0.6f, 0.85f), under ? 0.55f : 0f);
+                sun.color = Color.Lerp(baseSun, new Color(0.45f, 0.7f, 0.85f), under ? 0.45f : 0f);
                 sun.intensity = Mathf.Lerp(sun.intensity, sunMul, Time.deltaTime * 2.5f);
             }
 
@@ -100,7 +103,11 @@ namespace UnderwaterDiving
             if (cam != null)
             {
                 cam.backgroundColor = fog;
-                cam.farClipPlane = Mathf.Lerp(220f, 140f, edgeFog);
+                // Keep long beach vista above water; tighten only when submerged / near edge.
+                if (!under)
+                    cam.farClipPlane = Mathf.Lerp(2800f, 900f, edgeFog);
+                else
+                    cam.farClipPlane = Mathf.Lerp(420f, 160f, edgeFog);
             }
         }
     }

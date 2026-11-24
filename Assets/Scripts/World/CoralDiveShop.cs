@@ -41,93 +41,65 @@ namespace UnderwaterDiving
 
         public static CoralDiveShop Create(Transform parent, Vector3 pos, int index, System.Random rng)
         {
-            var root = new GameObject("CoralDiveShop_" + index);
+            return Create(parent, pos, index, rng, 0f, beachStall: false);
+        }
+
+        /// <summary>Beach arc supplies stall (right shop) or deep-coral nestled stall.</summary>
+        public static CoralDiveShop Create(Transform parent, Vector3 pos, int index, System.Random rng, float yaw, bool beachStall)
+        {
+            string label = beachStall ? "BeachSupplies" : ("CoralDiveShop_" + index);
+            var root = new GameObject(label);
             root.transform.SetParent(parent, false);
             root.transform.position = pos;
+            root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
             var stallMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
-                new Color(0.35f, 0.4f, 0.42f), 0.4f, 0.2f, new Vector2(2f, 2f));
+                beachStall ? new Color(0.55f, 0.48f, 0.36f) : new Color(0.35f, 0.4f, 0.42f),
+                0.4f, 0.2f, new Vector2(2f, 2f));
             var clothMat = ProceduralTextures.MakeLit(
                 ProceduralTextures.CoralAlbedo, ProceduralTextures.CoralNormal,
-                new Color(0.2f, 0.55f, 0.5f), 0.3f, 0.05f, new Vector2(1f, 1f));
+                beachStall ? new Color(0.2f, 0.65f, 0.55f) : new Color(0.2f, 0.55f, 0.5f),
+                0.3f, 0.05f, new Vector2(1f, 1f));
 
             var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "StallFloor";
             floor.transform.SetParent(root.transform, false);
-            floor.transform.localScale = new Vector3(3.2f, 0.25f, 2.6f);
+            floor.transform.localScale = beachStall ? new Vector3(4.6f, 0.28f, 3.6f) : new Vector3(3.2f, 0.25f, 2.6f);
             floor.GetComponent<MeshRenderer>().sharedMaterial = stallMat;
 
             var counter = GameObject.CreatePrimitive(PrimitiveType.Cube);
             counter.name = "Counter";
             Object.Destroy(counter.GetComponent<Collider>());
             counter.transform.SetParent(root.transform, false);
-            counter.transform.localPosition = new Vector3(0f, 0.55f, 0.7f);
-            counter.transform.localScale = new Vector3(2.4f, 0.7f, 0.5f);
+            counter.transform.localPosition = new Vector3(0f, beachStall ? 0.7f : 0.55f, beachStall ? 1.0f : 0.7f);
+            counter.transform.localScale = beachStall ? new Vector3(3.2f, 0.7f, 0.55f) : new Vector3(2.4f, 0.7f, 0.5f);
             counter.GetComponent<MeshRenderer>().sharedMaterial = stallMat;
 
             var awning = GameObject.CreatePrimitive(PrimitiveType.Cube);
             awning.name = "Awning";
             Object.Destroy(awning.GetComponent<Collider>());
             awning.transform.SetParent(root.transform, false);
-            awning.transform.localPosition = new Vector3(0f, 1.5f, 0.2f);
-            awning.transform.localScale = new Vector3(3.0f, 0.08f, 2.4f);
+            awning.transform.localPosition = new Vector3(0f, beachStall ? 2.0f : 1.5f, 0.2f);
+            awning.transform.localScale = beachStall ? new Vector3(4.4f, 0.08f, 3.4f) : new Vector3(3.0f, 0.08f, 2.4f);
             awning.GetComponent<MeshRenderer>().sharedMaterial = clothMat;
 
             var lamp = new GameObject("StallLamp");
             lamp.transform.SetParent(root.transform, false);
-            lamp.transform.localPosition = new Vector3(0f, 1.7f, 0f);
+            lamp.transform.localPosition = new Vector3(0f, beachStall ? 2.3f : 1.7f, 0f);
             var light = lamp.AddComponent<Light>();
             light.type = LightType.Point;
-            light.range = 9f;
-            light.intensity = 1.6f;
-            light.color = new Color(0.45f, 0.85f, 0.9f);
+            light.range = beachStall ? 12f : 9f;
+            light.intensity = beachStall ? 1.5f : 1.6f;
+            light.color = beachStall ? new Color(1f, 0.92f, 0.75f) : new Color(0.45f, 0.85f, 0.9f);
 
-            CreateVendorNpc(root.transform, VendorNames[index % VendorNames.Length]);
+            string vendor = beachStall ? "Shore Vendor" : VendorNames[index % VendorNames.Length];
+            ShopVendorVisual.Create(root.transform, new Vector3(0f, beachStall ? 1.15f : 1.05f, 0.15f), vendor);
 
             var shop = root.AddComponent<CoralDiveShop>();
-            shop.vendorName = VendorNames[index % VendorNames.Length];
+            shop.vendorName = vendor;
             shop.BuildUi();
             return shop;
-        }
-
-        static void CreateVendorNpc(Transform parent, string name)
-        {
-            var npc = new GameObject("Vendor_" + name);
-            npc.transform.SetParent(parent, false);
-            npc.transform.localPosition = new Vector3(0f, 1.05f, 0.15f);
-
-            var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            body.name = "Body";
-            Object.Destroy(body.GetComponent<Collider>());
-            body.transform.SetParent(npc.transform, false);
-            body.transform.localScale = new Vector3(0.55f, 0.7f, 0.55f);
-            body.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.SuitAlbedo, ProceduralTextures.SuitNormal,
-                Color.white, 0.4f, 0.15f, new Vector2(1.5f, 1.5f));
-
-            var tank = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            tank.name = "Tank";
-            Object.Destroy(tank.GetComponent<Collider>());
-            tank.transform.SetParent(npc.transform, false);
-            tank.transform.localPosition = new Vector3(0f, 0.15f, -0.22f);
-            tank.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            tank.transform.localScale = new Vector3(0.18f, 0.22f, 0.18f);
-            tank.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
-                new Color(0.7f, 0.75f, 0.8f), 0.55f, 0.45f, new Vector2(1f, 1f));
-
-            var helm = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            helm.name = "Helmet";
-            Object.Destroy(helm.GetComponent<Collider>());
-            helm.transform.SetParent(npc.transform, false);
-            helm.transform.localPosition = new Vector3(0f, 0.72f, 0f);
-            helm.transform.localScale = Vector3.one * 0.42f;
-            helm.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
-                ProceduralTextures.RockAlbedo, ProceduralTextures.RockNormal,
-                new Color(0.55f, 0.7f, 0.85f), 0.75f, 0.35f, new Vector2(1f, 1f));
-
-            npc.AddComponent<VendorBob>();
         }
 
         void BuildUi()
@@ -176,10 +148,10 @@ namespace UnderwaterDiving
             if (swim != null)
             {
                 float d = Vector3.Distance(swim.transform.position, transform.position);
-                playerNear = d <= 5.5f;
+                playerNear = d <= DiveWorldConfig.ShopInteractRadius;
             }
 
-            if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))
+            if (playerNear && !open && !GameUi.BlocksGameplay && ShopInteract.WantsOpen(swim))
                 Open();
             if (open && GameUi.TryConsumeEscape())
                 Close();

@@ -5,7 +5,7 @@ Shader "Underwater/DepthGrade"
         _MainTex ("Base (RGB)", 2D) = "white" {}
         _Tint ("Tint", Color) = (0.2, 0.55, 0.65, 1)
         _Contrast ("Contrast", Range(0.5, 1.5)) = 1.05
-        _Saturation ("Saturation", Range(0, 1.5)) = 0.9
+        _Saturation ("Saturation", Range(0, 3)) = 2.5
         _Vignette ("Vignette", Range(0, 1.5)) = 0.35
         _Absorb ("Red Absorb", Range(0, 1)) = 0.45
         _Depth ("Depth 01", Range(0, 1)) = 0
@@ -50,19 +50,19 @@ Shader "Underwater/DepthGrade"
                 fixed4 col = tex2D(_MainTex, i.uv);
                 float d = saturate(_Depth);
 
-                // Depth color grade: cool cyan/teal, red absorption.
+                // Depth color grade: cool cyan/teal, red absorption (stronger underwater).
                 fixed3 tint = lerp(fixed3(1,1,1), _Tint.rgb, d * 0.55);
                 col.rgb *= tint;
                 col.r *= lerp(1.0, 1.0 - _Absorb, d);
 
-                // Contrast + saturation
+                // Contrast + saturation — saturation applies scene-wide (beach vivid grade).
                 col.rgb = (col.rgb - 0.5) * _Contrast + 0.5;
                 float luma = dot(col.rgb, fixed3(0.299, 0.587, 0.114));
-                col.rgb = lerp(luma.xxx, col.rgb, lerp(1.0, _Saturation, d));
+                col.rgb = lerp(luma.xxx, col.rgb, _Saturation);
 
                 // Soft vignette stronger underwater
                 float2 vc = i.uv * 2.0 - 1.0;
-                float vig = saturate(1.0 - dot(vc, vc) * (_Vignette * lerp(0.15, 1.0, d)));
+                float vig = saturate(1.0 - dot(vc, vc) * (_Vignette * lerp(0.08, 1.0, d)));
                 col.rgb *= vig;
 
                 return col;

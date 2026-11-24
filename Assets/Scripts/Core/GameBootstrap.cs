@@ -55,16 +55,19 @@ namespace UnderwaterDiving
 
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(root, false);
-            sunGo.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
+            // Bright Maldives noon — white sand / turquoise water read.
+            sunGo.transform.rotation = Quaternion.Euler(58f, -28f, 0f);
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.85f;
-            sun.intensity = 1.15f;
-            sun.color = new Color(1f, 0.96f, 0.88f);
+            sun.shadowStrength = 0.8f;
+            sun.intensity = 1.55f;
+            sun.color = new Color(1f, 0.98f, 0.9f);
 
             RenderSettings.skybox = null;
-            RenderSettings.subtractiveShadowColor = new Color(0.15f, 0.25f, 0.35f);
+            RenderSettings.subtractiveShadowColor = new Color(0.35f, 0.55f, 0.7f);
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.72f, 0.8f, 0.88f);
 
             // Starting location: sunny shore walk-in (OpenOcean site with beach geometry).
             DiveWorldConfig.SetActiveSite(DiveWorldConfig.DiveSite.OpenOcean);
@@ -86,11 +89,15 @@ namespace UnderwaterDiving
 
             // Zone flavour + life + loot after floor collider exists.
             DepthZoneVisuals.Build(root);
+            PerimeterScatter.Build(root);
             DeepCoralGrove.Create(root);
             FishSchoolSpawner.Create(root);
             ArtifactSpawner.Create(root);
+            // Three beach shops in an arc behind the waterline spawn.
             GearMarket.Create(root);
             DecorShop.Create(root);
+            CoralDiveShop.Create(root, DiveWorldConfig.BeachSuppliesPos, 0, new System.Random(77),
+                DiveWorldConfig.BeachSuppliesYaw, beachStall: true);
 
             DiveHud.Create();
             CreateHorizonCard(root);

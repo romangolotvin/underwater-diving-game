@@ -21,7 +21,8 @@ namespace UnderwaterDiving
         static Texture2D kelpAlbedo, kelpNormal;
         static Texture2D causticAlbedo;
 
-        public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.42f, 0.38f, 0.28f, 0.55f, 0.48f, 0.34f, 4.2f, 0.35f);
+        // Bright Maldives white sand base (tinted further at spawn by OceanFloorBuilder).
+        public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.72f, 0.68f, 0.58f, 0.92f, 0.88f, 0.78f, 4.2f, 0.28f);
         public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 9f, 0.55f);
         public static Texture2D RockAlbedo => rockAlbedo ??= MakeAlbedo(512, 0.22f, 0.24f, 0.26f, 0.35f, 0.36f, 0.34f, 2.4f, 0.55f);
         public static Texture2D RockNormal => rockNormal ??= MakeNormal(512, 5.5f, 1.1f);

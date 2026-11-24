@@ -4,7 +4,7 @@ using UnityEngine.UI;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Second surface shop: personal decorations / outfit accents.
+    /// Beach outfitter on the left of the shop arc.
     /// </summary>
     public class DecorShop : MonoBehaviour
     {
@@ -19,7 +19,8 @@ namespace UnderwaterDiving
 
         public static DecorShop Create(Transform parent)
         {
-            var go = GearMarket.BuildStall(parent, DiveWorldConfig.DecorShopPos, "DecorShop", new Color(0.55f, 0.35f, 0.45f));
+            var go = GearMarket.BuildStall(parent, DiveWorldConfig.DecorShopPos, "DecorShop",
+                new Color(0.55f, 0.35f, 0.45f), DiveWorldConfig.DecorShopYaw);
             var m = go.AddComponent<DecorShop>();
             m.BuildUi();
             return m;
@@ -81,7 +82,7 @@ namespace UnderwaterDiving
                 playerNear = d <= DiveWorldConfig.ShopInteractRadius;
             }
 
-            if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))
+            if (playerNear && !open && !GameUi.BlocksGameplay && ShopInteract.WantsOpen(swim))
                 Open();
             if (open && GameUi.TryConsumeEscape())
                 Close();

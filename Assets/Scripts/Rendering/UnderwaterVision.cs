@@ -3,11 +3,15 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Built-in pipeline depth color grade on the diver camera. No URP dependency.
+    /// Built-in pipeline color grade on the diver camera. No URP dependency.
+    /// Starting-beach look: scene-wide saturation ~+150% (2.5×), easing deeper.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class UnderwaterVision : MonoBehaviour
     {
+        /// <summary>Neutral sat = 1. Beach target ≈ +150% → 2.5.</summary>
+        public const float BeachSaturationBoost = 2.5f;
+
         Material postMat;
         float depth01;
 
@@ -49,21 +53,25 @@ namespace UnderwaterDiving
 
         void OnRenderImage(RenderTexture src, RenderTexture dest)
         {
-            if (postMat == null || depth01 < 0.001f)
+            if (postMat == null)
             {
                 Graphics.Blit(src, dest);
                 return;
             }
 
+            // Always grade: vivid beach/surface sat, cooler/desat with depth.
+            float sat = Mathf.Lerp(BeachSaturationBoost, 0.85f, depth01);
+            float contrast = Mathf.Lerp(1.08f, 0.95f, depth01);
+
             postMat.SetFloat("_Depth", depth01);
             postMat.SetColor("_Tint", Color.Lerp(
-                new Color(0.35f, 0.7f, 0.75f),
+                new Color(1f, 0.92f, 0.78f),
                 new Color(0.08f, 0.22f, 0.4f),
                 depth01));
-            postMat.SetFloat("_Absorb", Mathf.Lerp(0.2f, 0.75f, depth01));
-            postMat.SetFloat("_Vignette", Mathf.Lerp(0.2f, 0.7f, depth01));
-            postMat.SetFloat("_Saturation", Mathf.Lerp(1.05f, 0.7f, depth01));
-            postMat.SetFloat("_Contrast", Mathf.Lerp(1.05f, 0.95f, depth01));
+            postMat.SetFloat("_Absorb", Mathf.Lerp(0.05f, 0.75f, depth01));
+            postMat.SetFloat("_Vignette", Mathf.Lerp(0.12f, 0.7f, depth01));
+            postMat.SetFloat("_Saturation", sat);
+            postMat.SetFloat("_Contrast", contrast);
             Graphics.Blit(src, dest, postMat);
         }
     }

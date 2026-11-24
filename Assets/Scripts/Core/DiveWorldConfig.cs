@@ -3,8 +3,8 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Active dive site + shared extents. Starting site is a sunny beach walk-in
-    /// with a soft shelf ramp; deep water sits ~1–1.5 km offshore.
+    /// Active dive site + shared extents. Starting site is a short Maldives-style
+    /// curved bay: bright sand, turquoise shallows, shops behind the waterline.
     /// </summary>
     public static class DiveWorldConfig
     {
@@ -29,16 +29,28 @@ namespace UnderwaterDiving
         public const float ShallowMaxDepth = 18f;
         public const float MidMaxDepth = 45f;
 
-        /// <summary>World Z of the sandy waterline (negative Z = beach hinterland).</summary>
+        /// <summary>World Z of the sandy waterline at bay center (x=0). Negative Z = beach hinterland.</summary>
         public const float BeachShoreZ = -900f;
 
-        /// <summary>Target shelf depth (m) at ~1.5 km offshore — soft ramp, no cliff.</summary>
+        /// <summary>Half-width of the curved bay (m). Headland reefs sit near ± this.</summary>
+        public const float ShoreArcHalfWidth = 92f;
+
+        /// <summary>How far headlands push seaward relative to bay center (m).</summary>
+        public const float ShoreArcBulge = 52f;
+
+        /// <summary>Open swim channel half-width through the bay mouth (m).</summary>
+        public const float ShoreChannelHalfWidth = 38f;
+
+        /// <summary>Target shelf depth (m) at CoastalShelfDistance — soft ramp, no cliff.</summary>
         public const float CoastalShelfDepth = 20f;
 
         /// <summary>Offshore distance (m) where the floor reaches CoastalShelfDepth.</summary>
         public const float CoastalShelfDistance = 1500f;
 
-        // Beach waterline: standing on wet sand, facing +Z into calm open water.
+        /// <summary>Short Maldives shallows: reach ~4–5 m depth within this offshore distance.</summary>
+        public const float NearshoreShallowDistance = 85f;
+
+        // Beach waterline: standing on wet sand at bay center, facing +Z into turquoise water.
         public const float PlayerSpawnX = 0f;
         public const float PlayerSpawnY = 1.25f;
         public const float PlayerSpawnZ = BeachShoreZ - 8f;
@@ -49,15 +61,34 @@ namespace UnderwaterDiving
         public const int MaxUpgradeLevel = 5;
         public const int UpgradePriceStep = 45;
 
-        // Nearshore underwater platforms (reachable after a short walk-in swim).
-        public static Vector3 GearMarketPos => new Vector3(42f, -5.5f, BeachShoreZ + 220f);
-        public static Vector3 DecorShopPos => new Vector3(-38f, -5.5f, BeachShoreZ + 195f);
+        // Three beach shops in an arc behind spawn (dry sand). Center faces the water;
+        // left/right sit slightly inland and angled inward.
+        public static Vector3 GearMarketPos => new Vector3(0f, 1.15f, BeachShoreZ - 34f);
+        public static Vector3 DecorShopPos => new Vector3(-16f, 1.15f, BeachShoreZ - 28f);
+        public static Vector3 BeachSuppliesPos => new Vector3(16f, 1.15f, BeachShoreZ - 28f);
+
+        public const float GearMarketYaw = 0f;
+        public const float DecorShopYaw = 28f;
+        public const float BeachSuppliesYaw = -28f;
 
         public const float ShopInteractRadius = 7.5f;
 
         public static bool IsOpenOcean => ActiveSite == DiveSite.OpenOcean;
 
         public static void SetActiveSite(DiveSite site) => ActiveSite = site;
+
+        /// <summary>
+        /// Curved bay waterline: center recessed inland, headlands bulge seaward (+Z).
+        /// Walk +Z across this curve into the water.
+        /// </summary>
+        public static float ShorelineZ(float x)
+        {
+            float t = Mathf.Clamp(x / ShoreArcHalfWidth, -1.75f, 1.75f);
+            return BeachShoreZ + ShoreArcBulge * (t * t);
+        }
+
+        /// <summary>Meters offshore of the curved waterline at this XZ (positive = toward open ocean).</summary>
+        public static float OffshoreDistance(float x, float z) => z - ShorelineZ(x);
 
         public static DepthBand GetBand(float depthBelowSurface)
         {

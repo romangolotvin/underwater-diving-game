@@ -5,6 +5,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Open Ocean: weighted random fish picks up to CreatureCatalog.OpenOceanFishBudget (207).
+    /// Distributed along the full swimable perimeter, not one nearshore cove.
     /// </summary>
     public class FishSchoolSpawner : MonoBehaviour
     {
@@ -33,7 +34,9 @@ namespace UnderwaterDiving
             for (int n = 0; n < budget; n++)
             {
                 var species = PickWeighted(pool, totalWeight, rng);
-                SpawnOne(species, rng);
+                // Even angular coverage: walk the ring, then jitter.
+                float angle01 = (n + (float)rng.NextDouble()) / budget;
+                SpawnOne(species, rng, angle01);
             }
         }
 
@@ -50,34 +53,51 @@ namespace UnderwaterDiving
             return pool[pool.Count - 1];
         }
 
-        void SpawnOne(FishSpecies species, System.Random rng)
+        void SpawnOne(FishSpecies species, System.Random rng, float angle01)
         {
             var band = FishAgent.SpeciesBand(species);
             FishAgent.BandRange(band, out float minD, out float maxD);
             var body = CreatureCatalog.Get(species).Body;
-            float shoreZ = DiveWorldConfig.BeachShoreZ;
 
             float x;
             float z;
-            // Bias shallow fauna into the nearshore reef band so the beach walk-in feels alive.
-            if (band == DepthBand.Shallow && rng.NextDouble() < 0.65)
+            double roll = rng.NextDouble();
+
+            // Shallow species bias hard into the short bay entrance; others keep full perimeter.
+            bool nearshore = band == DepthBand.Shallow
+                ? roll < 0.55
+                : roll >= 0.78 && roll < 0.88;
+            if (nearshore)
             {
-                x = (float)(rng.NextDouble() * 260.0 - 130.0);
-                z = shoreZ + 35f + (float)(rng.NextDouble() * 380.0);
+                // Short Maldives entrance: fish right past the curved waterline.
+                float along = Mathf.Lerp(-DiveWorldConfig.ShoreArcHalfWidth * 1.15f,
+                    DiveWorldConfig.ShoreArcHalfWidth * 1.15f, (float)rng.NextDouble());
+                x = along + (float)(rng.NextDouble() * 20.0 - 10.0);
+                z = DiveWorldConfig.ShorelineZ(x) + 5f + (float)(rng.NextDouble() * 90.0);
+            }
+            else if (roll < 0.78)
+            {
+                float minFrac = body == CreatureBody.Eel || body == CreatureBody.Snake ? 0.7f : 0.82f;
+                float maxFrac = 0.97f;
+                float frac = Mathf.Lerp(minFrac, maxFrac, (float)rng.NextDouble());
+                float a = Mathf.Repeat(angle01 + (float)(rng.NextDouble() * 0.02 - 0.01), 1f);
+                var xz = DivePerimeter.RingXZ(a, frac);
+                x = xz.x;
+                z = xz.y;
+                if (!DivePerimeter.IsWetEnough(x, z, 18f))
+                    z = DiveWorldConfig.ShorelineZ(x) + 20f + (float)(rng.NextDouble() * 80.0);
             }
             else
             {
-                float maxR = DiveWorldConfig.SoftBoundaryRadius * 0.7f;
+                float maxR = DiveWorldConfig.SoftBoundaryRadius * 0.72f;
                 float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
                 float rad = Mathf.Sqrt((float)rng.NextDouble()) * maxR;
                 if (body == CreatureBody.Eel || body == CreatureBody.Snake)
                     rad = Mathf.Sqrt((float)rng.NextDouble()) * (maxR * 0.5f);
-
                 x = Mathf.Cos(ang) * rad;
                 z = Mathf.Sin(ang) * rad;
-                // Never place fish on the dry beach pad.
-                if (z < shoreZ + 20f)
-                    z = shoreZ + 20f + (float)(rng.NextDouble() * 200.0);
+                if (!DivePerimeter.IsWetEnough(x, z, 18f))
+                    z = DiveWorldConfig.ShorelineZ(x) + 20f + (float)(rng.NextDouble() * 200.0);
             }
 
             float depth = Mathf.Lerp(minD + 1.5f, maxD - 1.5f, (float)rng.NextDouble());
@@ -88,8 +108,7 @@ namespace UnderwaterDiving
                 float floorDepth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
                 if (floorDepth < 0.8f)
                 {
-                    // Reject land hits — nudge offshore into water.
-                    z = Mathf.Max(z, shoreZ + 40f);
+                    z = DiveWorldConfig.ShorelineZ(x) + 16f;
                     if (Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out hit, 120f))
                         floorDepth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
                 }
