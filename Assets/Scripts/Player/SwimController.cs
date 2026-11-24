@@ -7,7 +7,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// First-person underwater swimming with buoyancy, quadratic drag, and tuned thrust.
-    /// Shore walk uses direct transform displace so PhysX contact/friction cannot cancel WASD.
+    /// Shore/wade WASD uses Rigidbody.MovePosition so PhysX contact cannot cancel movement.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class SwimController : MonoBehaviour
