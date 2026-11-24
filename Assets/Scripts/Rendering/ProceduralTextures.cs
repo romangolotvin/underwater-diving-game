@@ -18,6 +18,8 @@ namespace UnderwaterDiving
         static Texture2D shellAlbedo, shellNormal;
         static Texture2D rayAlbedo, rayNormal;
         static Texture2D ropeAlbedo;
+        static Texture2D kelpAlbedo, kelpNormal;
+        static Texture2D causticAlbedo;
 
         public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.42f, 0.38f, 0.28f, 0.55f, 0.48f, 0.34f, 4.2f, 0.35f);
         public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 9f, 0.55f);
@@ -37,6 +39,9 @@ namespace UnderwaterDiving
         public static Texture2D RayAlbedo => rayAlbedo ??= MakeRaySkin(512);
         public static Texture2D RayNormal => rayNormal ??= MakeNormal(512, 4.5f, 0.55f);
         public static Texture2D RopeAlbedo => ropeAlbedo ??= MakeRope(256);
+        public static Texture2D KelpAlbedo => kelpAlbedo ??= MakeAlbedo(512, 0.08f, 0.28f, 0.12f, 0.18f, 0.48f, 0.22f, 5.5f, 0.45f);
+        public static Texture2D KelpNormal => kelpNormal ??= MakeNormal(512, 8f, 0.7f);
+        public static Texture2D CausticAlbedo => causticAlbedo ??= MakeCaustic(512);
 
         public static Material MakeLit(Texture2D albedo, Texture2D normal, Color tint, float gloss, float metal, Vector2 tiling)
         {
@@ -77,6 +82,21 @@ namespace UnderwaterDiving
             var c = tint;
             c.a = tint.a;
             mat.color = c;
+            return mat;
+        }
+
+        public static Material MakeAdditive(Texture2D albedo, Color tint, float gloss)
+        {
+            var mat = MakeLit(albedo, null, tint, gloss, 0f, new Vector2(4f, 4f));
+            mat.SetFloat("_Mode", 3f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_ZWrite", 0);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.DisableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = 3001;
+            mat.color = tint;
             return mat;
         }
 
@@ -293,6 +313,33 @@ namespace UnderwaterDiving
                 Color c = Color.Lerp(new Color(0.05f, 0.25f, 0.35f, 0.55f), new Color(0.2f, 0.55f, 0.65f, 0.4f), w);
                 c.a = Mathf.Lerp(0.35f, 0.65f, r);
                 px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, false);
+            return tex;
+        }
+
+        static Texture2D MakeCaustic(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "CausticAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float a = Fbm(u * 7f, v * 7f, 4);
+                float b = Fbm(u * 11f + 5f, v * 11f + 2f, 3);
+                float ridge = 1f - Mathf.Abs(a - b) * 2f;
+                float bright = Mathf.Pow(Mathf.Clamp01(ridge), 3.2f);
+                float soft = Mathf.Pow(Mathf.Clamp01(a * b * 1.6f), 2f);
+                float i = Mathf.Clamp01(bright * 0.85f + soft * 0.35f);
+                px[x + y * size] = new Color(i, i * 0.95f, i * 0.85f, i);
             }
             tex.SetPixels(px);
             tex.Apply(true, false);

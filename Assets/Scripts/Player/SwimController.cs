@@ -56,6 +56,13 @@ namespace UnderwaterDiving
 
         public void SetCameraPivot(Transform pivot) => cameraPivot = pivot;
 
+        public void AddExternalForce(Vector3 force)
+        {
+            if (body == null)
+                return;
+            body.AddForce(force, ForceMode.Acceleration);
+        }
+
         public bool IsUnderwater { get; private set; }
         public float Submersion { get; private set; }
         public float CurrentDepth { get; private set; }
