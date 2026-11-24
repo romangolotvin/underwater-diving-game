@@ -53,6 +53,9 @@ namespace UnderwaterDiving
         DiverSuit suit;
 
         public Transform CameraPivot => cameraPivot;
+
+        public void SetCameraPivot(Transform pivot) => cameraPivot = pivot;
+
         public bool IsUnderwater { get; private set; }
         public float Submersion { get; private set; }
         public float CurrentDepth { get; private set; }
@@ -282,17 +285,24 @@ namespace UnderwaterDiving
                 transform.position = p;
             }
 
-            // Soft world radius fence.
+            // Invisible soft boundary only — no rock walls. Fog hides the limit.
             Vector3 flat = new Vector3(p.x, 0f, p.z);
-            if (flat.magnitude > DiveWorldConfig.OceanRadius)
+            float soft = DiveWorldConfig.SoftBoundaryRadius;
+            float mag = flat.magnitude;
+            if (mag > soft * 0.85f)
             {
-                flat = flat.normalized * DiveWorldConfig.OceanRadius;
-                transform.position = new Vector3(flat.x, p.y, flat.z);
-                Vector3 v = body.linearVelocity;
                 Vector3 outward = flat.normalized;
+                float t = Mathf.InverseLerp(soft * 0.85f, soft, mag);
+                Vector3 v = body.linearVelocity;
                 float outwardSpeed = Vector3.Dot(v, outward);
                 if (outwardSpeed > 0f)
-                    body.linearVelocity = v - outward * outwardSpeed;
+                    body.linearVelocity = v - outward * (outwardSpeed * Mathf.Lerp(0.35f, 1f, t));
+
+                if (mag > soft)
+                {
+                    flat = outward * soft;
+                    transform.position = new Vector3(flat.x, p.y, flat.z);
+                }
             }
         }
 

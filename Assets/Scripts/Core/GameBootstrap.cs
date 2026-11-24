@@ -1,0 +1,175 @@
+using UnityEngine;
+
+namespace UnderwaterDiving
+{
+    /// <summary>
+    /// Builds the playable swim + open ocean prototype at runtime.
+    /// </summary>
+    public class GameBootstrap : MonoBehaviour
+    {
+        static bool booted;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void AutoBoot()
+        {
+            if (booted || FindFirstObjectByType<GameBootstrap>() != null || FindFirstObjectByType<SwimController>() != null)
+                return;
+            var go = new GameObject("GameBootstrap");
+            go.AddComponent<GameBootstrap>();
+        }
+
+        void Awake()
+        {
+            if (booted)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            booted = true;
+            DontDestroyOnLoad(gameObject);
+            BuildWorld();
+        }
+
+        void BuildWorld()
+        {
+            // Clear default scene camera/light clutter if present.
+            foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
+            {
+                if (cam.CompareTag("MainCamera") || cam.gameObject.name.Contains("Main Camera"))
+                    Destroy(cam.gameObject);
+            }
+
+            var root = new GameObject("OceanWorld").transform;
+            root.SetParent(transform, false);
+
+            var water = new GameObject("WaterVolume");
+            water.transform.SetParent(root, false);
+            water.AddComponent<WaterVolume>();
+
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+            QualitySettings.antiAliasing = 4;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+
+            var sunGo = new GameObject("Sun");
+            sunGo.transform.SetParent(root, false);
+            sunGo.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
+            var sun = sunGo.AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.85f;
+            sun.intensity = 1.15f;
+            sun.color = new Color(1f, 0.96f, 0.88f);
+
+            // Soft skylight fill (open ocean, not a boxed map).
+            RenderSettings.skybox = null;
+            RenderSettings.subtractiveShadowColor = new Color(0.15f, 0.25f, 0.35f);
+
+            OceanFloorBuilder.Build(root);
+            WaterSurfaceVisual.Create(root);
+            UnderwaterAtmosphere.Create(root, sun);
+            OceanAmbience.Create(root);
+
+            CreatePlayer(root);
+            DiveHud.Create();
+
+            // Distant horizon disc — textured water continuation, not a rock wall.
+            CreateHorizonCard(root);
+        }
+
+        void CreatePlayer(Transform root)
+        {
+            var player = new GameObject("Diver");
+            player.tag = "Player";
+            player.transform.SetParent(root, false);
+            player.transform.position = DiveWorldConfig.PlayerSpawn;
+
+            var rb = player.AddComponent<Rigidbody>();
+            rb.mass = 80f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.constraints = RigidbodyConstraints.FreezeRotation;
+
+            var col = player.AddComponent<CapsuleCollider>();
+            col.height = 1.8f;
+            col.radius = 0.35f;
+            col.center = new Vector3(0f, 0f, 0f);
+
+            // Visible body (textured suit) — camera sits at eye height.
+            var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "SuitBody";
+            Destroy(body.GetComponent<CapsuleCollider>());
+            body.transform.SetParent(player.transform, false);
+            body.transform.localPosition = Vector3.zero;
+            body.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
+            body.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
+                ProceduralTextures.SuitAlbedo,
+                ProceduralTextures.SuitNormal,
+                Color.white,
+                0.35f,
+                0.15f,
+                new Vector2(1.5f, 1.5f));
+
+            var tank = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            tank.name = "Tank";
+            Destroy(tank.GetComponent<CapsuleCollider>());
+            tank.transform.SetParent(player.transform, false);
+            tank.transform.localPosition = new Vector3(0f, 0.15f, -0.28f);
+            tank.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            tank.transform.localScale = new Vector3(0.22f, 0.28f, 0.22f);
+            tank.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
+                ProceduralTextures.RockAlbedo,
+                ProceduralTextures.RockNormal,
+                new Color(0.75f, 0.78f, 0.8f),
+                0.6f,
+                0.55f,
+                new Vector2(1f, 1f));
+
+            var camPivot = new GameObject("CameraPivot").transform;
+            camPivot.SetParent(player.transform, false);
+            camPivot.localPosition = new Vector3(0f, 0.55f, 0f);
+
+            var camGo = new GameObject("Main Camera");
+            camGo.tag = "MainCamera";
+            camGo.transform.SetParent(camPivot, false);
+            camGo.transform.localPosition = Vector3.zero;
+            var cam = camGo.AddComponent<Camera>();
+            cam.nearClipPlane = 0.05f;
+            cam.farClipPlane = 220f;
+            cam.fieldOfView = 72f;
+            cam.allowMSAA = true;
+            cam.allowHDR = true;
+            camGo.AddComponent<AudioListener>();
+
+            // Hide own head/suit from FP camera
+            body.GetComponent<MeshRenderer>().enabled = false;
+            tank.GetComponent<MeshRenderer>().enabled = false;
+
+            player.AddComponent<DiverSuit>();
+            var swim = player.AddComponent<SwimController>();
+            swim.SetCameraPivot(camPivot);
+
+            BubbleParticles.CreateAroundPlayer(player.transform);
+        }
+
+        void CreateHorizonCard(Transform root)
+        {
+            // Large textured seabed skirt beyond soft boundary — open fade, not a wall.
+            var skirt = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            skirt.name = "HorizonSeabed";
+            Destroy(skirt.GetComponent<Collider>());
+            skirt.transform.SetParent(root, false);
+            skirt.transform.position = new Vector3(0f, DiveWorldConfig.OceanFloorY + 6f, 0f);
+            float d = DiveWorldConfig.OceanRadius * 2.2f;
+            skirt.transform.localScale = new Vector3(d, 0.2f, d);
+            skirt.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(
+                ProceduralTextures.SiltAlbedo,
+                ProceduralTextures.SiltNormal,
+                Color.white,
+                0.1f,
+                0.04f,
+                new Vector2(80f, 80f));
+        }
+    }
+
+}

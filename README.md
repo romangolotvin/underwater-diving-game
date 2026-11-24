@@ -1,42 +1,50 @@
 # Underwater Diving Game
 
-Unity 6 prototype of a first-person underwater diving game: swim the ocean, hunt fish with a speargun, collect seabed artifacts, sell loot, and upgrade your diving suit and backpack.
+Unity 6 first-person underwater dive prototype — open ocean swimming.
 
-**Editor version:** `6000.0.85f1` (Unity 6)
+**Editor:** `6000.0.85f1` (Unity 6)
 
-## Status
+## Prototype includes (current)
 
-In progress. Current vertical-slice foundation:
+- First-person swimming (buoyancy, drag, look, ascend/descend)
+- Open seabed with depth variation (shallow → mid → deep); **no rock-wall boundary**
+- Soft invisible limit + fog fade only
+- Textured ocean floor, rocks, shallow coral, water surface, suit materials (albedo + normals)
+- Underwater atmosphere (fog/light by depth)
+- Layered ocean ambience + swim bubbles
+- Minimal HUD: depth (m) and air (s) only — no meta/prompt text
 
-- First-person swimming controller with buoyancy, drag, and look controls
-- Water volume / submersion queries
-- Diver suit air & depth stats (upgrade hooks)
+**Not in this build yet:** speargun, fish, artifacts, mythical creatures (Kraken / Megalodon), economy — per Ro, later.
 
-More systems (speargun, fish AI, artifacts, economy, upgrades UI) are being added next.
+## How to run
 
-## Open in Unity
+1. Install **Unity Hub** and editor **6000.0.85f1** (or a close Unity 6 build).
+2. Hub → **Open** → select this folder (`UnderwaterDiving`).
+3. Open scene `Assets/Scenes/Ocean.unity` (or press Play — `GameBootstrap` auto-builds the world).
+4. Click Game view, then swim.
 
-1. Install **Unity Hub** and editor **6000.0.85f1** (or compatible Unity 6).
-2. **Add** → **Add project from disk** → select this repository folder.
-3. Open the project and press Play once a bootstrap scene is present.
-
-## Controls (swimming prototype)
+### Controls
 
 | Input | Action |
 |-------|--------|
 | Mouse | Look |
-| WASD | Swim / move |
+| WASD | Swim |
 | Space / E | Ascend |
 | Ctrl / Q / C | Descend |
-| Shift | Sprint swim |
-| Scroll wheel | Fine vertical trim |
+| Shift | Sprint |
+| Scroll | Fine vertical trim |
 | Esc | Unlock cursor |
-| LMB | Re-lock cursor |
+| LMB | Lock cursor |
 
-## Repo layout
+## Windows build
 
+With the editor installed:
+
+```text
+Unity.exe -batchmode -nographics -projectPath <this-folder> -buildWindows64Player <out>\UnderwaterDiving.exe -quit -logFile build.log
 ```
-Assets/Scripts/   Gameplay code
-Packages/         UPM manifest
-ProjectSettings/  Unity 6 project settings
-```
+
+## Reference
+
+`Reference/abyssal-webgpu-example/` — style inspiration only (not shipped into gameplay code).
+See `DESIGN_NOTES.md` for Ro’s standing rules.
