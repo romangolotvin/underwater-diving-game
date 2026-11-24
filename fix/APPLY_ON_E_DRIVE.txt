@@ -1,0 +1,13 @@
+CS7036 WaterCaustic fix (MakeAdditive gloss is 3rd arg)
+
+Remote branch cursor/depth-economy-speargun-fd9d already has the correct line 24:
+  var mat = ProceduralTextures.MakeAdditive(ProceduralTextures.CausticAlbedo, new Color(0.65f, 0.9f, 1f), 0.45f);
+
+If e:\UnderwaterDiving still shows CS7036 after git pull:
+1) Confirm you are on branch: cursor/depth-economy-speargun-fd9d
+2) Overwrite:
+   copy fix\WaterCaustic.cs e:\UnderwaterDiving\Assets\Scripts\Environment\WaterCaustic.cs
+   OR from repo root:
+   git checkout cursor/depth-economy-speargun-fd9d -- Assets/Scripts/Environment/WaterCaustic.cs
+3) Signature in ProceduralTextures.cs:
+   public static Material MakeAdditive(Texture2D albedo, Color tint, float gloss)

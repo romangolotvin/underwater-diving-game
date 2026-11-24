@@ -14,9 +14,64 @@ namespace UnderwaterDiving
         static Texture2D coralAlbedo, coralNormal;
         static Texture2D suitAlbedo, suitNormal;
         static Texture2D waterAlbedo;
+        static Texture2D fishScaleAlbedo, fishScaleNormal;
+        static Texture2D shellAlbedo, shellNormal;
+        static Texture2D rayAlbedo, rayNormal;
+        static Texture2D ropeAlbedo;
+        static Texture2D kelpAlbedo, kelpNormal;
+        static Texture2D causticAlbedo;
 
-        public static Texture2D SandAlbedo => sandAlbedo ??= MakeAlbedo(512, 0.42f, 0.38f, 0.28f, 0.55f, 0.48f, 0.34f, 4.2f, 0.35f);
-        public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 9f, 0.55f);
+        // Grainy golden beach sand (albedo + normal) — yellow, not white/snow.
+        public static Texture2D SandAlbedo => sandAlbedo ??= MakeSandAlbedo(256);
+        public static Texture2D SandNormal => sandNormal ??= MakeNormal(256, 16f, 1.25f);
+
+        static Material goldenSandOpaque;
+        static Material goldenSandClear;
+
+        /// <summary>Cached golden beach sand material (opaque shelf or translucent cliff face).</summary>
+        public static Material GoldenSandLit(Vector2 tiling, bool opaque)
+        {
+            if (opaque)
+            {
+                if (goldenSandOpaque == null)
+                {
+                    goldenSandOpaque = MakeLit(
+                        SandAlbedo, SandNormal,
+                        new Color(0.96f, 0.78f, 0.28f),
+                        0.28f, 0.02f, tiling);
+                    if (goldenSandOpaque.HasProperty("_BumpScale"))
+                        goldenSandOpaque.SetFloat("_BumpScale", 1.55f);
+                }
+                if (goldenSandOpaque.mainTextureScale != tiling)
+                {
+                    var m = new Material(goldenSandOpaque) { mainTextureScale = tiling };
+                    if (m.HasProperty("_BumpMap"))
+                        m.SetTextureScale("_BumpMap", tiling);
+                    return m;
+                }
+                return goldenSandOpaque;
+            }
+
+            if (goldenSandClear == null)
+            {
+                goldenSandClear = MakeTransparentLit(
+                    SandAlbedo,
+                    new Color(0.98f, 0.82f, 0.32f, 0.55f),
+                    0.35f);
+                goldenSandClear.SetTexture("_BumpMap", SandNormal);
+                goldenSandClear.EnableKeyword("_NORMALMAP");
+                if (goldenSandClear.HasProperty("_BumpScale"))
+                    goldenSandClear.SetFloat("_BumpScale", 1.2f);
+            }
+            if (goldenSandClear.mainTextureScale != tiling)
+            {
+                var m = new Material(goldenSandClear) { mainTextureScale = tiling };
+                if (m.HasProperty("_BumpMap"))
+                    m.SetTextureScale("_BumpMap", tiling);
+                return m;
+            }
+            return goldenSandClear;
+        }
         public static Texture2D RockAlbedo => rockAlbedo ??= MakeAlbedo(512, 0.22f, 0.24f, 0.26f, 0.35f, 0.36f, 0.34f, 2.4f, 0.55f);
         public static Texture2D RockNormal => rockNormal ??= MakeNormal(512, 5.5f, 1.1f);
         public static Texture2D SiltAlbedo => siltAlbedo ??= MakeAlbedo(512, 0.12f, 0.14f, 0.18f, 0.18f, 0.2f, 0.26f, 1.8f, 0.4f);
@@ -26,6 +81,16 @@ namespace UnderwaterDiving
         public static Texture2D SuitAlbedo => suitAlbedo ??= MakeSuitAlbedo(512);
         public static Texture2D SuitNormal => suitNormal ??= MakeNormal(512, 4f, 0.35f);
         public static Texture2D WaterAlbedo => waterAlbedo ??= MakeWater(512);
+        public static Texture2D FishScaleAlbedo => fishScaleAlbedo ??= MakeFishScale(512);
+        public static Texture2D FishScaleNormal => fishScaleNormal ??= MakeNormal(512, 11f, 0.9f);
+        public static Texture2D ShellAlbedo => shellAlbedo ??= MakeShell(512);
+        public static Texture2D ShellNormal => shellNormal ??= MakeNormal(512, 6f, 1.2f);
+        public static Texture2D RayAlbedo => rayAlbedo ??= MakeRaySkin(512);
+        public static Texture2D RayNormal => rayNormal ??= MakeNormal(512, 4.5f, 0.55f);
+        public static Texture2D RopeAlbedo => ropeAlbedo ??= MakeRope(256);
+        public static Texture2D KelpAlbedo => kelpAlbedo ??= MakeAlbedo(512, 0.08f, 0.28f, 0.12f, 0.18f, 0.48f, 0.22f, 5.5f, 0.45f);
+        public static Texture2D KelpNormal => kelpNormal ??= MakeNormal(512, 8f, 0.7f);
+        public static Texture2D CausticAlbedo => causticAlbedo ??= MakeCaustic(512);
 
         public static Material MakeLit(Texture2D albedo, Texture2D normal, Color tint, float gloss, float metal, Vector2 tiling)
         {
@@ -66,6 +131,21 @@ namespace UnderwaterDiving
             var c = tint;
             c.a = tint.a;
             mat.color = c;
+            return mat;
+        }
+
+        public static Material MakeAdditive(Texture2D albedo, Color tint, float gloss)
+        {
+            var mat = MakeLit(albedo, null, tint, gloss, 0f, new Vector2(4f, 4f));
+            mat.SetFloat("_Mode", 3f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_ZWrite", 0);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.DisableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = 3001;
+            mat.color = tint;
             return mat;
         }
 
@@ -159,6 +239,151 @@ namespace UnderwaterDiving
             return tex;
         }
 
+        static Texture2D MakeFishScale(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "FishScaleAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float row = Mathf.Floor(v * 28f);
+                float ox = (row % 2f) * 0.5f;
+                float sx = Mathf.Abs(((u * 28f + ox) % 1f) - 0.5f);
+                float sy = Mathf.Abs(((v * 28f) % 1f) - 0.5f);
+                float scale = Mathf.Clamp01(1f - (sx * sx + sy * sy * 1.4f) * 4f);
+                float n = Fbm(u * 5f, v * 5f, 4);
+                Color c = Color.Lerp(new Color(0.18f, 0.28f, 0.32f), new Color(0.55f, 0.7f, 0.65f), scale);
+                c = Color.Lerp(c, c * (0.7f + n * 0.5f), 0.45f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeShell(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "ShellAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float plate = Mathf.Abs(Mathf.Sin(u * 9f) * Mathf.Cos(v * 7f));
+                float n = Fbm(u * 4f, v * 4f, 4);
+                Color c = Color.Lerp(new Color(0.25f, 0.38f, 0.22f), new Color(0.55f, 0.62f, 0.35f), plate);
+                c = Color.Lerp(c, new Color(0.4f, 0.32f, 0.18f), n * 0.35f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeRaySkin(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "RayAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float spots = Mathf.Pow(Fbm(u * 10f, v * 10f, 3), 2.2f);
+                float n = Fbm(u * 3f, v * 3f, 4);
+                Color c = Color.Lerp(new Color(0.28f, 0.26f, 0.32f), new Color(0.55f, 0.5f, 0.48f), n);
+                c = Color.Lerp(c, new Color(0.75f, 0.72f, 0.68f), spots * 0.65f);
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        static Texture2D MakeRope(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "RopeAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 4
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float twist = Mathf.Abs(Mathf.Sin((u + v) * 40f));
+                float n = Fbm(u * 8f, v * 8f, 3);
+                Color c = Color.Lerp(new Color(0.45f, 0.38f, 0.22f), new Color(0.7f, 0.62f, 0.4f), twist);
+                c *= 0.85f + n * 0.25f;
+                px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>
+        /// Visible sand grain: golden / yellow beach base (not white snow), darker flecks, shell chips.
+        /// </summary>
+        static Texture2D MakeSandAlbedo(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "SandAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 8
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = x / (float)size;
+                    float v = y / (float)size;
+                    float dunes = Fbm(u * 3.2f, v * 3.2f, 4);
+                    float grain = Fbm(u * 28f + 9f, v * 28f + 3f, 3);
+                    float micro = Fbm(u * 64f + 41f, v * 64f + 17f, 2);
+                    float shell = Mathf.Pow(Fbm(u * 11f + 2f, v * 11f + 5f, 2), 4.5f);
+
+                    // Deep gold → bright yellow beach (never near-white).
+                    Color baseC = Color.Lerp(
+                        new Color(0.82f, 0.62f, 0.18f),
+                        new Color(0.98f, 0.84f, 0.32f),
+                        dunes);
+                    float fleck = Mathf.Lerp(0.78f, 1.06f, grain);
+                    fleck *= Mathf.Lerp(0.9f, 1.04f, micro);
+                    baseC *= fleck;
+                    baseC = Color.Lerp(baseC, new Color(1f, 0.92f, 0.55f), shell * 0.4f);
+                    px[x + y * size] = baseC;
+                }
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
         static Texture2D MakeWater(int size)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
@@ -175,9 +400,37 @@ namespace UnderwaterDiving
                 float u = x / (float)size, v = y / (float)size;
                 float w = Fbm(u * 6f, v * 6f, 4);
                 float r = Fbm(u * 14f + 3f, v * 14f, 3);
-                Color c = Color.Lerp(new Color(0.05f, 0.25f, 0.35f, 0.55f), new Color(0.2f, 0.55f, 0.65f, 0.4f), w);
-                c.a = Mathf.Lerp(0.35f, 0.65f, r);
+                // Lighter, more transparent water sheet (less murky teal).
+                Color c = Color.Lerp(new Color(0.18f, 0.42f, 0.58f, 0.28f), new Color(0.35f, 0.62f, 0.78f, 0.18f), w);
+                c.a = Mathf.Lerp(0.16f, 0.34f, r);
                 px[x + y * size] = c;
+            }
+            tex.SetPixels(px);
+            tex.Apply(true, false);
+            return tex;
+        }
+
+        static Texture2D MakeCaustic(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false)
+            {
+                name = "CausticAlbedo",
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x / (float)size, v = y / (float)size;
+                float a = Fbm(u * 7f, v * 7f, 4);
+                float b = Fbm(u * 11f + 5f, v * 11f + 2f, 3);
+                float ridge = 1f - Mathf.Abs(a - b) * 2f;
+                float bright = Mathf.Pow(Mathf.Clamp01(ridge), 3.2f);
+                float soft = Mathf.Pow(Mathf.Clamp01(a * b * 1.6f), 2f);
+                float i = Mathf.Clamp01(bright * 0.85f + soft * 0.35f);
+                px[x + y * size] = new Color(i, i * 0.95f, i * 0.85f, i);
             }
             tex.SetPixels(px);
             tex.Apply(true, false);
