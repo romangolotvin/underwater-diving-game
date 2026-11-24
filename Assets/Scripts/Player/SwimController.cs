@@ -425,7 +425,8 @@ namespace UnderwaterDiving
 
         /// <summary>
         /// x = strafe, y = up/down, z = forward.
-        /// Uses both axes and GetKey so WASD still works if Input Manager axes misbehave.
+        /// Uses Horizontal/Vertical axes plus GetKey so WASD still works if Input Manager axes misbehave.
+        /// Desktop keyboard only — no mobile touch joystick in this project.
         /// </summary>
         Vector3 GetMoveInput()
         {
@@ -433,10 +434,14 @@ namespace UnderwaterDiving
             float z = Input.GetAxisRaw("Vertical");
 
             // Hard key fallback (legacy Input) — never depend solely on axis wiring.
-            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) x = -1f;
-            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) x = 1f;
-            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) z = -1f;
-            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) z = 1f;
+            bool left = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+            bool right = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+            bool back = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+            bool forward = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+            if (left || right)
+                x = (right ? 1f : 0f) - (left ? 1f : 0f);
+            if (forward || back)
+                z = (forward ? 1f : 0f) - (back ? 1f : 0f);
 
             float y = 0f;
             if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.E))

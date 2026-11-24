@@ -28,6 +28,7 @@ Unity 6 first-person underwater dive prototype — **Open Ocean** site (spawn un
 | Ctrl / Q / C | Descend |
 | Shift | Sprint |
 | Scroll | Fine vertical trim |
+| L | Toggle flashlight |
 | LMB | Fire speargun (underwater) / lock cursor |
 | RMB | Reel line |
 | F | Open nearby shop (Harbor Market or Outfitter) |

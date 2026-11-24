@@ -63,7 +63,8 @@ namespace UnderwaterDiving
         bool WasTogglePressed()
         {
             // Legacy Input Manager only (no com.unity.inputsystem in this project).
-            return Input.GetKeyDown(toggleKey);
+            // Always honor L even if a serialized toggleKey was cleared in the inspector.
+            return Input.GetKeyDown(toggleKey) || Input.GetKeyDown(KeyCode.L);
         }
 
         public void SetOn(bool on)
