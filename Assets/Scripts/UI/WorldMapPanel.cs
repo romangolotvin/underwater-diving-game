@@ -4,11 +4,13 @@ using UnityEngine.UI;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Simple Canvas world map: toggle panel, clickable region pins, teleport to spawn.
+    /// Simple Canvas world map: toggle panel (M or UI button), clickable region pins, teleport to spawn.
     /// Locations come from DiveWorldConfig (Open Ocean) + DiveRegionCatalog country sites.
     /// </summary>
     public class WorldMapPanel : MonoBehaviour
     {
+        const KeyCode MapToggleKey = KeyCode.M;
+
         struct MapSite
         {
             public string Label;
@@ -96,7 +98,7 @@ namespace UnderwaterDiving
                 new Vector2(0.95f, 0.1f),
                 18,
                 TextAnchor.MiddleCenter,
-                "Click a site to travel · Клик по точке — телепорт");
+                "Click a site to travel · Клик по точке — телепорт · M — map");
 
             foreach (var site in BuildSites())
                 CreatePin(mapArea.transform, site);
@@ -226,7 +228,18 @@ namespace UnderwaterDiving
         {
             // Consume Escape before SwimController unlocks cursor on the same key.
             if (open && GameUi.TryConsumeEscape())
+            {
                 Close();
+                return;
+            }
+
+            if (!Input.GetKeyDown(MapToggleKey))
+                return;
+
+            if (open)
+                Close();
+            else if (!GameUi.BlocksGameplay)
+                Open();
         }
     }
 }

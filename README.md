@@ -31,7 +31,8 @@ Unity 6 first-person underwater dive prototype — **Open Ocean** site (spawn un
 | LMB | Fire speargun (underwater) / lock cursor |
 | RMB | Reel line |
 | F | Open nearby shop (Harbor Market or Outfitter) |
-| Esc | Unlock cursor / close shop |
+| M | Open / close world map |
+| Esc | Unlock cursor / close shop or map |
 
 ## Shops
 
