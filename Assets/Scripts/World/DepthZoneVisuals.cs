@@ -24,8 +24,8 @@ namespace UnderwaterDiving
 
             var rng = new System.Random(303);
 
-            // Dense seaweed beds immediately past the curved waterline (short bay entrance).
-            for (int i = 0; i < 95; i++)
+            // Seaweed beds past the waterline / cliff lip.
+            for (int i = 0; i < 48; i++)
             {
                 float x = (float)(rng.NextDouble() * 170.0 - 85.0);
                 float z = DiveWorldConfig.ShorelineZ(x) + 6f + (float)(rng.NextDouble() * 95.0);
@@ -38,8 +38,8 @@ namespace UnderwaterDiving
                 SpawnWeed(root, hit.point, seaweedMat, rng, 0.8f, 2.4f, 0.08f);
             }
 
-            // Extra seaweed around the entire soft-boundary ring (not one cove).
-            const int ringWeed = 120;
+            // Extra seaweed around the soft-boundary ring.
+            const int ringWeed = 64;
             for (int i = 0; i < ringWeed; i++)
             {
                 float a = (i + (float)rng.NextDouble()) / ringWeed;
@@ -51,8 +51,8 @@ namespace UnderwaterDiving
                 SpawnWeed(root, floor, seaweedMat, rng, 0.8f, 2.4f, 0.08f);
             }
 
-            // Mid-depth kelp on a mid/outer perimeter band (full 360°).
-            const int kelpCount = 72;
+            // Mid-depth kelp on a mid/outer perimeter band.
+            const int kelpCount = 36;
             for (int i = 0; i < kelpCount; i++)
             {
                 float a = (i + 0.37f) / kelpCount;
@@ -73,8 +73,8 @@ namespace UnderwaterDiving
                 kelp.GetComponent<MeshRenderer>().sharedMaterial = kelpMat;
             }
 
-            // Deep silt pillars on the outer swimable ring / basins.
-            const int pillarCount = 36;
+            // Deep silt pillars on the outer swimable ring.
+            const int pillarCount = 18;
             for (int i = 0; i < pillarCount; i++)
             {
                 float a = (i + 0.12f) / pillarCount;

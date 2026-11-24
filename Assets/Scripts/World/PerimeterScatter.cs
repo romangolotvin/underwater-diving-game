@@ -37,8 +37,8 @@ namespace UnderwaterDiving
 
             var rng = new System.Random(20261124);
 
-            // Landmark structures evenly around the full swimable ring.
-            const int structureCount = 52;
+            // Landmark structures evenly around the full swimable ring (leaner for boot).
+            const int structureCount = 28;
             for (int i = 0; i < structureCount; i++)
             {
                 float a = (i + 0.5f) / structureCount;
@@ -57,8 +57,8 @@ namespace UnderwaterDiving
                     SpawnRockStack(structures, floor, depth, rockMat, rng);
             }
 
-            // Dense prop scatter on the same ring (coral heads, barrels, rubble).
-            const int propCount = 140;
+            // Prop scatter on the same ring (coral heads, barrels, rubble).
+            const int propCount = 72;
             for (int i = 0; i < propCount; i++)
             {
                 float a = (i + (float)rng.NextDouble()) / propCount;
@@ -77,7 +77,7 @@ namespace UnderwaterDiving
             }
 
             // Mid-shelf band so the swimable perimeter feels filled, not only the outer ring.
-            const int midBand = 28;
+            const int midBand = 16;
             for (int i = 0; i < midBand; i++)
             {
                 float a = (i + 0.21f) / midBand;
@@ -96,7 +96,7 @@ namespace UnderwaterDiving
             }
 
             // Horizon cloud puffs — full 360° so no empty sky quadrant.
-            const int cloudCount = 48;
+            const int cloudCount = 28;
             float cloudR = DiveWorldConfig.SoftBoundaryRadius * 1.05f;
             for (int i = 0; i < cloudCount; i++)
             {

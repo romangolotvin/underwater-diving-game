@@ -1,9 +1,11 @@
+using System.Collections;
 using UnityEngine;
 
 namespace UnderwaterDiving
 {
     /// <summary>
     /// Builds the playable ocean dive prototype at runtime.
+    /// Critical path (floor, player, shops, HUD) is sync; dense décor/fauna fills after first frame.
     /// </summary>
     public class GameBootstrap : MonoBehaviour
     {
@@ -48,10 +50,11 @@ namespace UnderwaterDiving
             water.transform.SetParent(root, false);
             water.AddComponent<WaterVolume>();
 
-            QualitySettings.shadows = ShadowQuality.All;
-            QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
-            QualitySettings.antiAliasing = 4;
-            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            // Lean defaults for faster enter Play Mode (shadows/AA were a large boot hitch).
+            QualitySettings.shadows = ShadowQuality.HardOnly;
+            QualitySettings.shadowResolution = ShadowResolution.Medium;
+            QualitySettings.antiAliasing = 2;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
 
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(root, false);
@@ -103,13 +106,7 @@ namespace UnderwaterDiving
 
             CreatePlayer(root);
 
-            // Zone flavour + life + loot after floor collider exists.
-            DepthZoneVisuals.Build(root);
-            PerimeterScatter.Build(root);
-            DeepCoralGrove.Create(root);
-            FishSchoolSpawner.Create(root);
-            ArtifactSpawner.Create(root);
-            // Three beach shops in an arc behind the waterline spawn.
+            // Critical shops + HUD first so the player can move immediately.
             GearMarket.Create(root);
             DecorShop.Create(root);
             CoralDiveShop.Create(root, DiveWorldConfig.BeachSuppliesPos, 0, new System.Random(77),
@@ -123,7 +120,6 @@ namespace UnderwaterDiving
             if (CosmeticLocker.Instance != null)
                 CosmeticLocker.Instance.ApplyVisuals();
 
-            // After all stalls/reefs exist: strip trap colliders around spawn, then unstick.
             var swim = SwimController.Instance;
             if (swim != null)
             {
@@ -132,6 +128,21 @@ namespace UnderwaterDiving
             }
             GameUi.ClearBlocking();
             UiGateTail.Attach(gameObject);
+
+            // Dense décor + fauna after the first rendered frame (noticeably faster enter).
+            StartCoroutine(DeferredPopulate(root));
+        }
+
+        IEnumerator DeferredPopulate(Transform root)
+        {
+            yield return null;
+            DepthZoneVisuals.Build(root);
+            yield return null;
+            PerimeterScatter.Build(root);
+            yield return null;
+            DeepCoralGrove.Create(root);
+            FishSchoolSpawner.Create(root);
+            ArtifactSpawner.Create(root);
         }
 
         void CreatePlayer(Transform root)
@@ -235,7 +246,7 @@ namespace UnderwaterDiving
             skirt.name = "HorizonSeabed";
             Destroy(skirt.GetComponent<Collider>());
             skirt.transform.SetParent(root, false);
-            skirt.transform.position = new Vector3(0f, DiveWorldConfig.OceanFloorY + 6f, 0f);
+            skirt.transform.position = new Vector3(0f, DiveWorldConfig.OceanFloorY + 0.4f, 0f);
             float d = DiveWorldConfig.OceanRadius * 2.2f;
             skirt.transform.localScale = new Vector3(d, 0.2f, d);
             skirt.GetComponent<MeshRenderer>().sharedMaterial = ProceduralTextures.MakeLit(

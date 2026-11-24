@@ -21,9 +21,57 @@ namespace UnderwaterDiving
         static Texture2D kelpAlbedo, kelpNormal;
         static Texture2D causticAlbedo;
 
-        // Grainy Maldives sand (albedo + normal) — not flat white; tinted further by OceanFloorBuilder.
-        public static Texture2D SandAlbedo => sandAlbedo ??= MakeSandAlbedo(512);
-        public static Texture2D SandNormal => sandNormal ??= MakeNormal(512, 16f, 1.25f);
+        // Grainy golden beach sand (albedo + normal) — yellow, not white/snow.
+        public static Texture2D SandAlbedo => sandAlbedo ??= MakeSandAlbedo(256);
+        public static Texture2D SandNormal => sandNormal ??= MakeNormal(256, 16f, 1.25f);
+
+        static Material goldenSandOpaque;
+        static Material goldenSandClear;
+
+        /// <summary>Cached golden beach sand material (opaque shelf or translucent cliff face).</summary>
+        public static Material GoldenSandLit(Vector2 tiling, bool opaque)
+        {
+            if (opaque)
+            {
+                if (goldenSandOpaque == null)
+                {
+                    goldenSandOpaque = MakeLit(
+                        SandAlbedo, SandNormal,
+                        new Color(0.96f, 0.78f, 0.28f),
+                        0.28f, 0.02f, tiling);
+                    if (goldenSandOpaque.HasProperty("_BumpScale"))
+                        goldenSandOpaque.SetFloat("_BumpScale", 1.55f);
+                }
+                if (goldenSandOpaque.mainTextureScale != tiling)
+                {
+                    var m = new Material(goldenSandOpaque) { mainTextureScale = tiling };
+                    if (m.HasProperty("_BumpMap"))
+                        m.SetTextureScale("_BumpMap", tiling);
+                    return m;
+                }
+                return goldenSandOpaque;
+            }
+
+            if (goldenSandClear == null)
+            {
+                goldenSandClear = MakeTransparentLit(
+                    SandAlbedo,
+                    new Color(0.98f, 0.82f, 0.32f, 0.55f),
+                    0.35f);
+                goldenSandClear.SetTexture("_BumpMap", SandNormal);
+                goldenSandClear.EnableKeyword("_NORMALMAP");
+                if (goldenSandClear.HasProperty("_BumpScale"))
+                    goldenSandClear.SetFloat("_BumpScale", 1.2f);
+            }
+            if (goldenSandClear.mainTextureScale != tiling)
+            {
+                var m = new Material(goldenSandClear) { mainTextureScale = tiling };
+                if (m.HasProperty("_BumpMap"))
+                    m.SetTextureScale("_BumpMap", tiling);
+                return m;
+            }
+            return goldenSandClear;
+        }
         public static Texture2D RockAlbedo => rockAlbedo ??= MakeAlbedo(512, 0.22f, 0.24f, 0.26f, 0.35f, 0.36f, 0.34f, 2.4f, 0.55f);
         public static Texture2D RockNormal => rockNormal ??= MakeNormal(512, 5.5f, 1.1f);
         public static Texture2D SiltAlbedo => siltAlbedo ??= MakeAlbedo(512, 0.12f, 0.14f, 0.18f, 0.18f, 0.2f, 0.26f, 1.8f, 0.4f);
@@ -296,8 +344,7 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Visible sand grain: warm beige base, darker mineral flecks, sparse shell chips.
-        /// Contrast is intentional so the floor never reads as flat white.
+        /// Visible sand grain: golden / yellow beach base (not white snow), darker flecks, shell chips.
         /// </summary>
         static Texture2D MakeSandAlbedo(int size)
         {
@@ -320,16 +367,15 @@ namespace UnderwaterDiving
                     float micro = Fbm(u * 64f + 41f, v * 64f + 17f, 2);
                     float shell = Mathf.Pow(Fbm(u * 11f + 2f, v * 11f + 5f, 2), 4.5f);
 
+                    // Deep gold → bright yellow beach (never near-white).
                     Color baseC = Color.Lerp(
-                        new Color(0.78f, 0.72f, 0.58f),
-                        new Color(0.94f, 0.90f, 0.78f),
+                        new Color(0.82f, 0.62f, 0.18f),
+                        new Color(0.98f, 0.84f, 0.32f),
                         dunes);
-                    // Darker mineral grains so albedo has readable texture under bright sun.
-                    float fleck = Mathf.Lerp(0.72f, 1.08f, grain);
-                    fleck *= Mathf.Lerp(0.88f, 1.05f, micro);
+                    float fleck = Mathf.Lerp(0.78f, 1.06f, grain);
+                    fleck *= Mathf.Lerp(0.9f, 1.04f, micro);
                     baseC *= fleck;
-                    // Sparse pale shell chips.
-                    baseC = Color.Lerp(baseC, new Color(0.98f, 0.95f, 0.88f), shell * 0.55f);
+                    baseC = Color.Lerp(baseC, new Color(1f, 0.92f, 0.55f), shell * 0.4f);
                     px[x + y * size] = baseC;
                 }
             }

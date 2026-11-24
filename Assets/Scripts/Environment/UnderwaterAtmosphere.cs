@@ -52,37 +52,18 @@ namespace UnderwaterDiving
             }
             else
             {
-                var band = DiveWorldConfig.GetBand(depth);
-                switch (band)
-                {
-                    case DepthBand.Shallow:
-                        // Clear, bright shallows — less dense / less dark so sand shows through.
-                        fog = Color.Lerp(new Color(0.42f, 0.72f, 0.82f), new Color(0.22f, 0.52f, 0.68f), depth / DiveWorldConfig.ShallowMaxDepth);
-                        density = Mathf.Lerp(0.008f, 0.018f, depth / DiveWorldConfig.ShallowMaxDepth);
-                        ambient = new Color(0.40f, 0.62f, 0.72f);
-                        sunMul = 1.15f;
-                        break;
-                    case DepthBand.Mid:
-                        fog = Color.Lerp(new Color(0.08f, 0.28f, 0.42f), new Color(0.04f, 0.14f, 0.26f),
-                            Mathf.InverseLerp(DiveWorldConfig.ShallowMaxDepth, DiveWorldConfig.MidMaxDepth, depth));
-                        density = Mathf.Lerp(0.028f, 0.045f,
-                            Mathf.InverseLerp(DiveWorldConfig.ShallowMaxDepth, DiveWorldConfig.MidMaxDepth, depth));
-                        ambient = new Color(0.1f, 0.2f, 0.3f);
-                        sunMul = 0.45f;
-                        break;
-                    default:
-                        fog = new Color(0.02f, 0.05f, 0.1f);
-                        density = 0.06f;
-                        ambient = new Color(0.03f, 0.05f, 0.09f);
-                        sunMul = 0.14f;
-                        break;
-                }
+                // 20 m cliff shelf stays bright/clear — no dark mid/abyss fog pockets on the drop.
+                float t = Mathf.Clamp01(depth / Mathf.Max(1f, DiveWorldConfig.CoastalShelfDepth));
+                fog = Color.Lerp(new Color(0.48f, 0.78f, 0.88f), new Color(0.32f, 0.62f, 0.78f), t);
+                density = Mathf.Lerp(0.006f, 0.014f, t);
+                ambient = Color.Lerp(new Color(0.48f, 0.68f, 0.78f), new Color(0.34f, 0.55f, 0.68f), t);
+                sunMul = Mathf.Lerp(1.2f, 0.85f, t);
 
-                // Night darkens upper water more than the abyss.
-                fog = Color.Lerp(fog * 0.45f, fog, Mathf.Lerp(0.55f, 1f, day));
-                ambient *= Mathf.Lerp(0.45f, 1f, day);
-                sunMul *= Mathf.Lerp(0.25f, 1f, day);
-                density = Mathf.Lerp(density, density + 0.035f, edgeFog);
+                // Night darkens water gently without crushing the cliff into a black zone.
+                fog = Color.Lerp(fog * 0.55f, fog, Mathf.Lerp(0.6f, 1f, day));
+                ambient *= Mathf.Lerp(0.5f, 1f, day);
+                sunMul *= Mathf.Lerp(0.3f, 1f, day);
+                density = Mathf.Lerp(density, density + 0.02f, edgeFog);
             }
 
             RenderSettings.fogColor = fog;

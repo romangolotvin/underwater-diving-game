@@ -4,13 +4,13 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Active dive site + shared extents. Starting site is a Maldives-style
-    /// curved bay: bright textured sand, clear blue walk-in, shops behind the waterline.
+    /// curved bay: golden sand, clear walk-in, then a smooth 1:1 cliff to 20 m.
     /// </summary>
     public static class DiveWorldConfig
     {
         public enum DiveSite
         {
-            /// <summary>Starting coastal shelf — beach waterline spawn, calm walk-in, open water beyond.</summary>
+            /// <summary>Starting coastal shelf — beach waterline spawn, 20 m cliff, open water beyond.</summary>
             OpenOcean
             // Country sites are separate travel destinations (added elsewhere).
         }
@@ -19,15 +19,17 @@ namespace UnderwaterDiving
         public static DiveSite ActiveSite { get; private set; } = DiveSite.OpenOcean;
 
         public const float WaterSurfaceY = 0f;
-        public const float OceanFloorY = -80f;
+        /// <summary>Absolute floor clamp — shelf rests at −CoastalShelfDepth, not a 70–80 m abyss.</summary>
+        public const float OceanFloorY = -22f;
 
-        // Large enough that ~1.5 km of calm shelf fits between shore and far water.
+        // Large enough that the bay + soft boundary feel open from the beach.
         public const float OceanRadius = 1600f;
         public const float SoftBoundaryRadius = 1480f;
 
-        public const float MaxDepthMeters = 80f;
-        public const float ShallowMaxDepth = 18f;
-        public const float MidMaxDepth = 45f;
+        public const float MaxDepthMeters = 22f;
+        /// <summary>Entire 20 m shelf stays in the bright shallow fog band (no dark cliff pocket).</summary>
+        public const float ShallowMaxDepth = 22f;
+        public const float MidMaxDepth = 22f;
 
         /// <summary>World Z of the sandy waterline at bay center (x=0). Negative Z = beach hinterland.</summary>
         public const float BeachShoreZ = -900f;
@@ -41,17 +43,22 @@ namespace UnderwaterDiving
         /// <summary>Open swim channel half-width through the bay mouth (m).</summary>
         public const float ShoreChannelHalfWidth = 38f;
 
-        /// <summary>Target shelf depth (m) at CoastalShelfDistance — soft ramp, no cliff.</summary>
+        /// <summary>Target shelf depth (m) after the cliff run — was a 70 m drop; now 20 m.</summary>
         public const float CoastalShelfDepth = 20f;
 
-        /// <summary>Offshore distance (m) where the floor reaches CoastalShelfDepth.</summary>
-        public const float CoastalShelfDistance = 1500f;
+        /// <summary>
+        /// Horizontal distance (m) of the cliff face. Matched to CoastalShelfDepth for a smooth 1:1
+        /// decline (1 m down per 1 m forward) — not the old stepped terrace then sudden 70 m pit.
+        /// </summary>
+        public const float CoastalShelfDistance = 20f;
+
+        /// <summary>Alias: cliff run length equals shelf depth for 1:1 slope.</summary>
+        public const float CliffDropDistance = CoastalShelfDepth;
 
         /// <summary>
-        /// Gentle walk-in shallows (Turkey-like): reach ~5 m depth over this offshore distance.
-        /// No abrupt drop at the waterline — depth grows gradually into turquoise.
+        /// Short ankle-depth lip before the 1:1 cliff (meters offshore). Keeps the waterline walkable.
         /// </summary>
-        public const float NearshoreShallowDistance = 280f;
+        public const float NearshoreShallowDistance = 4f;
 
         // Beach waterline: standing on wet sand at bay center, facing +Z into turquoise water.
         // Y is capsule center (height 1.8 → feet at Y-0.9). Kept well above dry-sand mesh (~0–0.3)

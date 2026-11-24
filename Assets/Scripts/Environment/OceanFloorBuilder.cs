@@ -3,8 +3,8 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Maldives-style coastal seabed: curved bay shoreline, gentle Turkey-like walk-in,
-    /// organic headland reef/rock barriers on the flanks, soft shelf farther offshore.
+    /// Maldives-style coastal seabed: curved bay, smooth 1:1 cliff to 20 m,
+    /// golden sand, organic headland reefs, flat shelf beyond the drop.
     /// </summary>
     public static class OceanFloorBuilder
     {
@@ -54,7 +54,8 @@ namespace UnderwaterDiving
 
         public static GameObject Build(Transform parent)
         {
-            const int res = 288;
+            // Coarser far mesh — detail cliff is a separate high-res apron (faster enter Play Mode).
+            const int res = 160;
             float half = DiveWorldConfig.OceanRadius;
             float step = (half * 2f) / (res - 1);
 
@@ -70,22 +71,16 @@ namespace UnderwaterDiving
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
             var mr = go.AddComponent<MeshRenderer>();
-            // Warm textured sand — tint stays off pure white so grain/normals read.
-            var sandFloor = ProceduralTextures.MakeLit(
-                ProceduralTextures.SandAlbedo,
-                ProceduralTextures.SandNormal,
-                new Color(0.94f, 0.90f, 0.80f),
-                0.22f,
-                0.03f,
-                new Vector2(56f, 56f));
-            if (sandFloor.HasProperty("_BumpScale"))
-                sandFloor.SetFloat("_BumpScale", 1.65f);
+            var sandFloor = ProceduralTextures.GoldenSandLit(new Vector2(56f, 56f), opaque: true);
             mr.sharedMaterial = sandFloor;
             var floorCol = go.AddComponent<MeshCollider>();
             floorCol.sharedMesh = mesh;
             // Match diver capsule — default mesh friction was eating shore walk even with velocity writes.
             floorCol.material = SharedZeroFriction.Material;
 
+            // High-res smooth 1:1 cliff (coarse global mesh alone looked stepped).
+            BuildCliffRamp(go.transform);
+            // Light nearshore scatter only — dense perimeter deferred by GameBootstrap.
             ScatterInteriorFeatures(go.transform, heights, res, -half, step);
             BuildBeachExtras(go.transform);
             BuildShoreBarriers(go.transform);
@@ -93,67 +88,51 @@ namespace UnderwaterDiving
         }
 
         /// <summary>
-        /// Soft beach → gradual turquoise shelf (Turkey-like ramp, no cliff).
-        /// Dry sand south of the curved waterline; ~5 m by NearshoreShallowDistance;
-        /// ~20 m only after ~1.5 km.
+        /// Dry beach → short ankle lip → linear 1:1 cliff to −20 m → flat shelf.
+        /// No terrace steps and no far 70 m basins.
         /// </summary>
         static float SampleFloorY(float x, float z)
         {
             float shoreZ = DiveWorldConfig.ShorelineZ(x);
             float offshore = z - shoreZ;
-            float near = DiveWorldConfig.NearshoreShallowDistance;
+            float lip = DiveWorldConfig.NearshoreShallowDistance;
+            float cliff = DiveWorldConfig.CliffDropDistance;
+            float depth = DiveWorldConfig.CoastalShelfDepth;
 
             float shelfY;
             if (offshore < -140f)
             {
-                // Dry hinterland / low dunes above the waterline.
                 shelfY = 2.6f;
             }
             else if (offshore < 0f)
             {
-                // Sandy beach face down to the waterline (calm walk-in along the curve).
                 float t = Mathf.InverseLerp(-140f, 0f, offshore);
                 shelfY = Mathf.Lerp(2.6f, 0.05f, SmoothStep(0f, 1f, t));
             }
-            else if (offshore < 55f)
+            else if (offshore < lip)
             {
-                // First steps into water — ankle/knee depth only, no ledge.
-                float t = SmoothStep(0f, 1f, offshore / 55f);
-                shelfY = Mathf.Lerp(0.05f, -1.35f, t);
+                // Ankle-depth lip so the waterline stays walkable.
+                float t = offshore / Mathf.Max(0.01f, lip);
+                shelfY = Mathf.Lerp(0.05f, -0.45f, t);
             }
-            else if (offshore < near)
+            else if (offshore < lip + cliff)
             {
-                // Long gentle shallows — depth grows slowly like a Turkey beach entry.
-                float t = SmoothStep(0f, 1f, (offshore - 55f) / (near - 55f));
-                shelfY = Mathf.Lerp(-1.35f, -5.2f, t);
-            }
-            else if (offshore < DiveWorldConfig.CoastalShelfDistance)
-            {
-                float t = SmoothStep(0f, 1f,
-                    (offshore - near) / (DiveWorldConfig.CoastalShelfDistance - near));
-                shelfY = Mathf.Lerp(-5.2f, -DiveWorldConfig.CoastalShelfDepth, t);
+                // Exact 1:1: 1 m down per 1 m forward until CoastalShelfDepth.
+                float along = offshore - lip;
+                shelfY = Mathf.Max(-depth, -0.45f - along);
             }
             else
             {
-                shelfY = -DiveWorldConfig.CoastalShelfDepth;
+                shelfY = -depth;
             }
 
-            // Soft noise — keep nearshore very calm so the walk-in never cliffs.
+            // Tiny grain only — never enough amplitude to re-introduce steps on the cliff face.
             float noiseAmp = offshore < 0f
-                ? 0.18f
-                : offshore < near
-                    ? Mathf.Lerp(0.14f, 0.55f, Mathf.Clamp01(offshore / near))
-                    : Mathf.Lerp(0.55f, 2.2f, Mathf.Clamp01((offshore - near) / 900f));
+                ? 0.12f
+                : offshore < lip + cliff
+                    ? 0.08f
+                    : 0.35f;
             shelfY += (Fbm(x * 0.011f, z * 0.011f, 3) - 0.5f) * noiseAmp;
-            shelfY += (Fbm(x * 0.04f, z * 0.04f, 2) - 0.5f) * (noiseAmp * 0.3f);
-
-            // Deep basins only far from shore.
-            if (offshore > 1000f)
-            {
-                float basin = Fbm(x * 0.006f + 40f, z * 0.006f + 12f, 3);
-                if (basin < 0.36f)
-                    shelfY -= (0.36f - basin) * 42f;
-            }
 
             float clear = 0f;
             for (int i = 0; i < Clears.Length; i++)
@@ -164,7 +143,7 @@ namespace UnderwaterDiving
             }
 
             float mesaLift = 0f;
-            if (offshore > 12f)
+            if (offshore > lip + cliff * 0.5f)
             {
                 for (int i = 0; i < Landmarks.Length; i++)
                 {
@@ -173,7 +152,7 @@ namespace UnderwaterDiving
                     float influence = 1f - SmoothStep(0f, 10f, Mathf.Max(0f, d));
                     if (influence <= 0f)
                         continue;
-                    float target = Mathf.Lerp(shelfY, m.TopY, influence);
+                    float target = Mathf.Lerp(shelfY, Mathf.Max(m.TopY, -depth + 1f), influence);
                     float waist = 1f - Mathf.Abs(0.5f - influence) * m.Waist * 0.12f;
                     mesaLift = Mathf.Max(mesaLift, (target - shelfY) * influence * waist);
                 }
@@ -181,11 +160,55 @@ namespace UnderwaterDiving
 
             float y = shelfY + mesaLift * (1f - clear * 0.8f);
 
-            // Allow dry beach above the waterline; keep submerged floor below it.
             float maxY = offshore < 40f
                 ? DiveWorldConfig.WaterSurfaceY + 4.5f
                 : DiveWorldConfig.WaterSurfaceY - 0.4f;
             return Mathf.Clamp(y, DiveWorldConfig.OceanFloorY, maxY);
+        }
+
+        /// <summary>
+        /// Dense apron along the bay mouth so the 20 m 1:1 drop is a smooth slope, not 11 m terraces.
+        /// Semi-transparent golden sand — cliff reads clear, not a dark wall.
+        /// </summary>
+        static void BuildCliffRamp(Transform parent)
+        {
+            const float cell = 0.7f;
+            float xHalf = DiveWorldConfig.ShoreArcHalfWidth * 1.55f;
+            float lip = DiveWorldConfig.NearshoreShallowDistance;
+            float cliff = DiveWorldConfig.CliffDropDistance;
+            float zBack = 3f;
+            float zFwd = lip + cliff + 4f;
+
+            int resX = Mathf.Max(8, Mathf.CeilToInt((xHalf * 2f) / cell) + 1);
+            int resZ = Mathf.Max(8, Mathf.CeilToInt((zBack + zFwd) / cell) + 1);
+            var heights = new float[resX, resZ];
+            float originX = -xHalf;
+            float stepX = (xHalf * 2f) / (resX - 1);
+            // Z is relative to ShorelineZ(0) for UV layout; SampleFloorY uses absolute world Z.
+            float shore0 = DiveWorldConfig.ShorelineZ(0f);
+            float originZ = shore0 - zBack;
+            float stepZ = (zBack + zFwd) / (resZ - 1);
+
+            for (int iz = 0; iz < resZ; iz++)
+            for (int ix = 0; ix < resX; ix++)
+            {
+                float wx = originX + ix * stepX;
+                float wz = originZ + iz * stepZ;
+                heights[ix, iz] = SampleFloorY(wx, wz);
+            }
+
+            var mesh = BuildMesh(heights, resX, resZ, originX, originZ, stepX, stepZ);
+            mesh.name = "CliffRampMesh";
+            var go = new GameObject("CliffRamp");
+            go.transform.SetParent(parent, false);
+            var mf = go.AddComponent<MeshFilter>();
+            mf.sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = ProceduralTextures.GoldenSandLit(new Vector2(18f, 18f), opaque: false);
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var col = go.AddComponent<MeshCollider>();
+            col.sharedMesh = mesh;
+            col.material = SharedZeroFriction.Material;
         }
 
         static void BuildBeachExtras(Transform parent)
@@ -193,15 +216,7 @@ namespace UnderwaterDiving
             // Low sunlit sand berm behind the waterline, bent to follow the bay arc.
             var bermRoot = new GameObject("BeachBermArc");
             bermRoot.transform.SetParent(parent, false);
-            var sandMat = ProceduralTextures.MakeLit(
-                ProceduralTextures.SandAlbedo,
-                ProceduralTextures.SandNormal,
-                new Color(0.95f, 0.91f, 0.82f),
-                0.24f,
-                0.04f,
-                new Vector2(14f, 6f));
-            if (sandMat.HasProperty("_BumpScale"))
-                sandMat.SetFloat("_BumpScale", 1.55f);
+            var sandMat = ProceduralTextures.GoldenSandLit(new Vector2(14f, 6f), opaque: true);
 
             const int segments = 14;
             float half = DiveWorldConfig.ShoreArcHalfWidth * 1.55f;
@@ -361,34 +376,37 @@ namespace UnderwaterDiving
         }
 
         static Mesh BuildMesh(float[,] h, int res, float origin, float step)
+            => BuildMesh(h, res, res, origin, origin, step, step);
+
+        static Mesh BuildMesh(float[,] h, int resX, int resZ, float originX, float originZ, float stepX, float stepZ)
         {
-            int vertCount = res * res;
+            int vertCount = resX * resZ;
             var verts = new Vector3[vertCount];
             var norms = new Vector3[vertCount];
             var uvs = new Vector2[vertCount];
-            var tris = new int[(res - 1) * (res - 1) * 6];
+            var tris = new int[(resX - 1) * (resZ - 1) * 6];
 
-            for (int z = 0; z < res; z++)
-            for (int x = 0; x < res; x++)
+            for (int z = 0; z < resZ; z++)
+            for (int x = 0; x < resX; x++)
             {
-                int i = x + z * res;
-                float wx = origin + x * step;
-                float wz = origin + z * step;
+                int i = x + z * resX;
+                float wx = originX + x * stepX;
+                float wz = originZ + z * stepZ;
                 verts[i] = new Vector3(wx, h[x, z], wz);
                 uvs[i] = new Vector2(wx * 0.05f, wz * 0.05f);
             }
 
             int t = 0;
-            for (int z = 0; z < res - 1; z++)
-            for (int x = 0; x < res - 1; x++)
+            for (int z = 0; z < resZ - 1; z++)
+            for (int x = 0; x < resX - 1; x++)
             {
-                int i = x + z * res;
+                int i = x + z * resX;
                 tris[t++] = i;
-                tris[t++] = i + res;
+                tris[t++] = i + resX;
                 tris[t++] = i + 1;
                 tris[t++] = i + 1;
-                tris[t++] = i + res;
-                tris[t++] = i + res + 1;
+                tris[t++] = i + resX;
+                tris[t++] = i + resX + 1;
             }
 
             for (int i = 0; i < vertCount; i++)
@@ -437,7 +455,8 @@ namespace UnderwaterDiving
                 new Color(1f, 0.55f, 0.4f), 0.4f, 0.05f, new Vector2(1.2f, 1.2f));
 
             var rng = new System.Random(20261110);
-            int rockCount = 160;
+            // Lean boot scatter — PerimeterScatter adds the rest deferred.
+            int rockCount = 48;
             float maxScatterR = DiveWorldConfig.SoftBoundaryRadius * 0.92f;
 
             for (int n = 0; n < rockCount; n++)
@@ -478,8 +497,8 @@ namespace UnderwaterDiving
                     depth > DiveWorldConfig.MidMaxDepth ? deepRockMat : rockMat;
             }
 
-            // Dense reef scatter through the gentle nearshore shallows (fish companions).
-            int coralCount = 180;
+            // Nearshore coral along the cliff lip (lean count for faster load).
+            int coralCount = 56;
             for (int n = 0; n < coralCount; n++)
             {
                 float wx = (float)(rng.NextDouble() * 180.0 - 90.0);

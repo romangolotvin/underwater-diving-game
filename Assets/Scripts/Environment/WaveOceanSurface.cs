@@ -8,7 +8,7 @@ namespace UnderwaterDiving
     /// </summary>
     public class WaveOceanSurface : MonoBehaviour
     {
-        [SerializeField] int resolution = 96;
+        [SerializeField] int resolution = 64;
         [SerializeField] float amplitude1 = 0.45f;
         [SerializeField] float amplitude2 = 0.28f;
         [SerializeField] float amplitude3 = 0.16f;

@@ -406,15 +406,25 @@ namespace UnderwaterDiving
 
         public static void BandRange(DepthBand band, out float minD, out float maxD)
         {
+            // 20 m shelf: fold mid/deep preferences into the available water column.
+            float floor = DiveWorldConfig.CoastalShelfDepth;
             switch (band)
             {
                 case DepthBand.Shallow:
-                    minD = 2f; maxD = DiveWorldConfig.ShallowMaxDepth; break;
+                    minD = 1.5f;
+                    maxD = Mathf.Min(floor * 0.55f, floor - 1f);
+                    break;
                 case DepthBand.Mid:
-                    minD = DiveWorldConfig.ShallowMaxDepth; maxD = DiveWorldConfig.MidMaxDepth; break;
+                    minD = floor * 0.35f;
+                    maxD = floor - 0.8f;
+                    break;
                 default:
-                    minD = DiveWorldConfig.MidMaxDepth; maxD = DiveWorldConfig.MaxDepthMeters - 2f; break;
+                    minD = floor * 0.55f;
+                    maxD = floor - 0.5f;
+                    break;
             }
+            if (maxD <= minD)
+                maxD = minD + 0.5f;
         }
     }
 }

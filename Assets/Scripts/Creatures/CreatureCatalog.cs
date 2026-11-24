@@ -68,7 +68,8 @@ namespace UnderwaterDiving
 
     public static class CreatureCatalog
     {
-        public const int OpenOceanFishBudget = 207;
+        /// <summary>Dense fauna present at once (fish + turtles + rays). Spawned across frames.</summary>
+        public const int OpenOceanFishBudget = 520;
 
         static readonly CreatureStats[] Table = Build();
 
@@ -133,9 +134,9 @@ namespace UnderwaterDiving
             S(FishSpecies.Squid, "fish_squid", "Squid", 38, DepthBand.Mid, CreatureBody.Squid, WaterSalinity.Salt, false, 2.8f, 1f, 0.5f, 0f, new Color(0.7f, 0.45f, 0.55f), 6);
             S(FishSpecies.Cuttlefish, "fish_cuttle", "Cuttlefish", 44, DepthBand.Mid, CreatureBody.Squid, WaterSalinity.Salt, false, 2.2f, 0.95f, 0.48f, 0f, new Color(0.65f, 0.5f, 0.35f), 4);
             S(FishSpecies.Jellyfish, "fish_jelly", "Jellyfish", 20, DepthBand.Mid, CreatureBody.Jelly, WaterSalinity.Salt, false, 1.0f, 1.1f, 0.55f, 0f, new Color(0.75f, 0.9f, 1f), 8);
-            S(FishSpecies.EagleRay, "fish_ray", "Eagle Ray", 60, DepthBand.Mid, CreatureBody.Ray, WaterSalinity.Salt, false, 2.5f, 1.2f, 0.85f, 0f, new Color(0.45f, 0.42f, 0.48f), 7);
-            S(FishSpecies.MantaRay, "fish_manta", "Manta Ray", 95, DepthBand.Mid, CreatureBody.Ray, WaterSalinity.Salt, false, 2.8f, 1.7f, 1.1f, 0f, new Color(0.2f, 0.25f, 0.35f), 3);
-            S(FishSpecies.SeaTurtle, "fish_turtle", "Sea Turtle", 70, DepthBand.Shallow, CreatureBody.Turtle, WaterSalinity.Salt, false, 1.6f, 1.2f, 0.9f, 0f, new Color(0.35f, 0.48f, 0.28f), 5);
+            S(FishSpecies.EagleRay, "fish_ray", "Eagle Ray", 60, DepthBand.Mid, CreatureBody.Ray, WaterSalinity.Salt, false, 2.5f, 1.2f, 0.85f, 0f, new Color(0.45f, 0.42f, 0.48f), 28);
+            S(FishSpecies.MantaRay, "fish_manta", "Manta Ray", 95, DepthBand.Mid, CreatureBody.Ray, WaterSalinity.Salt, false, 2.8f, 1.7f, 1.1f, 0f, new Color(0.2f, 0.25f, 0.35f), 16);
+            S(FishSpecies.SeaTurtle, "fish_turtle", "Sea Turtle", 70, DepthBand.Shallow, CreatureBody.Turtle, WaterSalinity.Salt, false, 1.6f, 1.2f, 0.9f, 0f, new Color(0.35f, 0.48f, 0.28f), 32);
             S(FishSpecies.Dolphin, "fish_dolphin", "Dolphin", 120, DepthBand.Mid, CreatureBody.Dolphin, WaterSalinity.Salt, false, 5.0f, 1.5f, 0.9f, 0f, new Color(0.55f, 0.65f, 0.75f), 4);
             S(FishSpecies.Octopus, "fish_octo", "Octopus", 70, DepthBand.Mid, CreatureBody.Squid, WaterSalinity.Salt, false, 1.8f, 1.05f, 0.55f, 0f, new Color(0.55f, 0.3f, 0.35f), 4);
             S(FishSpecies.MedGrouper, "fish_medgroup", "Mediterranean Grouper", 50, DepthBand.Mid, CreatureBody.BulkyFish, WaterSalinity.Salt, false, 2.3f, 1.25f, 0.7f, 0f, new Color(0.45f, 0.42f, 0.38f), 6);
