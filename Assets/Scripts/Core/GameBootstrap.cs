@@ -173,6 +173,9 @@ namespace UnderwaterDiving
             var gun = player.AddComponent<Speargun>();
             gun.Bind(camPivot);
 
+            var torch = player.AddComponent<DiverFlashlight>();
+            torch.Bind(camPivot);
+
             BubbleParticles.CreateAroundPlayer(player.transform);
         }
 
