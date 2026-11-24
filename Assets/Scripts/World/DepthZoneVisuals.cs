@@ -3,7 +3,7 @@ using UnityEngine;
 namespace UnderwaterDiving
 {
     /// <summary>
-    /// Zone flavour: nearshore seaweed close to the curved bay, mid kelp, deep silt pillars.
+    /// Zone flavour: dense bay seaweed plus seaweed/kelp/pillars on the full swimable perimeter.
     /// </summary>
     public static class DepthZoneVisuals
     {
@@ -24,7 +24,7 @@ namespace UnderwaterDiving
 
             var rng = new System.Random(303);
 
-            // Dense seaweed beds immediately past the curved waterline (short entrance).
+            // Dense seaweed beds immediately past the curved waterline (short bay entrance).
             for (int i = 0; i < 95; i++)
             {
                 float x = (float)(rng.NextDouble() * 170.0 - 85.0);
@@ -35,27 +35,31 @@ namespace UnderwaterDiving
                 if (depth < 0.8f || depth > DiveWorldConfig.ShallowMaxDepth * 0.85f)
                     continue;
 
-                var weed = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                weed.name = "Seaweed";
-                Object.Destroy(weed.GetComponent<Collider>());
-                weed.transform.SetParent(root, false);
-                float h = Mathf.Lerp(0.8f, 2.4f, (float)rng.NextDouble());
-                weed.transform.position = hit.point + Vector3.up * (h * 0.5f);
-                weed.transform.localScale = new Vector3(0.08f, h * 0.5f, 0.08f);
-                weed.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, (float)rng.NextDouble() * 10f);
-                weed.GetComponent<MeshRenderer>().sharedMaterial = seaweedMat;
+                SpawnWeed(root, hit.point, seaweedMat, rng, 0.8f, 2.4f, 0.08f);
             }
 
-            // Mid-depth kelp farther offshore on the soft shelf.
-            int kelpCount = 48;
+            // Extra seaweed around the entire soft-boundary ring (not one cove).
+            const int ringWeed = 90;
+            for (int i = 0; i < ringWeed; i++)
+            {
+                float a = (i + (float)rng.NextDouble()) / ringWeed;
+                float frac = 0.8f + (float)(rng.NextDouble() * 0.16);
+                if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
+                    continue;
+                if (depth < 1.0f || depth > DiveWorldConfig.ShallowMaxDepth * 0.9f)
+                    continue;
+                SpawnWeed(root, floor, seaweedMat, rng, 0.8f, 2.4f, 0.08f);
+            }
+
+            // Mid-depth kelp on a mid/outer perimeter band (full 360°).
+            const int kelpCount = 72;
             for (int i = 0; i < kelpCount; i++)
             {
-                float x = (float)(rng.NextDouble() * 400.0 - 200.0);
-                float z = DiveWorldConfig.BeachShoreZ + 280f + (float)(rng.NextDouble() * 900.0);
-                if (!Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out var hit, 80f))
+                float a = (i + 0.37f) / kelpCount;
+                float frac = 0.55f + (float)(rng.NextDouble() * 0.3);
+                if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
                     continue;
-                float depth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
-                if (depth < DiveWorldConfig.ShallowMaxDepth * 0.6f || depth > DiveWorldConfig.MidMaxDepth - 2f)
+                if (depth < DiveWorldConfig.ShallowMaxDepth * 0.55f || depth > DiveWorldConfig.MidMaxDepth - 1.5f)
                     continue;
 
                 var kelp = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -63,23 +67,21 @@ namespace UnderwaterDiving
                 Object.Destroy(kelp.GetComponent<Collider>());
                 kelp.transform.SetParent(root, false);
                 float h = Mathf.Lerp(2.5f, 7f, (float)rng.NextDouble());
-                kelp.transform.position = hit.point + Vector3.up * (h * 0.5f);
+                kelp.transform.position = floor + Vector3.up * (h * 0.5f);
                 kelp.transform.localScale = new Vector3(0.12f, h * 0.5f, 0.12f);
                 kelp.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, (float)rng.NextDouble() * 8f);
                 kelp.GetComponent<MeshRenderer>().sharedMaterial = kelpMat;
             }
 
-            // Deep silt pillars / vents — far shelf / basins only.
-            for (int i = 0; i < 24; i++)
+            // Deep silt pillars on the outer swimable ring / basins.
+            const int pillarCount = 36;
+            for (int i = 0; i < pillarCount; i++)
             {
-                float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
-                float rad = 400f + Mathf.Sqrt((float)rng.NextDouble()) * (DiveWorldConfig.SoftBoundaryRadius * 0.55f);
-                float x = Mathf.Cos(ang) * rad;
-                float z = DiveWorldConfig.BeachShoreZ + 1100f + Mathf.Sin(ang) * rad * 0.35f;
-                if (!Physics.Raycast(new Vector3(x, DiveWorldConfig.WaterSurfaceY - 1f, z), Vector3.down, out var hit, 120f))
+                float a = (i + 0.12f) / pillarCount;
+                float frac = 0.72f + (float)(rng.NextDouble() * 0.22);
+                if (!DivePerimeter.TryFloorOnRing(a, frac, out var floor, out float depth))
                     continue;
-                float depth = DiveWorldConfig.WaterSurfaceY - hit.point.y;
-                if (depth < DiveWorldConfig.CoastalShelfDepth + 2f)
+                if (depth < DiveWorldConfig.CoastalShelfDepth + 1.5f)
                     continue;
 
                 var pillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -88,10 +90,23 @@ namespace UnderwaterDiving
                 pillar.transform.SetParent(root, false);
                 float h = Mathf.Lerp(1.5f, 5f, (float)rng.NextDouble());
                 float r = Mathf.Lerp(0.5f, 1.6f, (float)rng.NextDouble());
-                pillar.transform.position = hit.point + Vector3.up * (h * 0.45f);
+                pillar.transform.position = floor + Vector3.up * (h * 0.45f);
                 pillar.transform.localScale = new Vector3(r, h * 0.5f, r);
                 pillar.GetComponent<MeshRenderer>().sharedMaterial = deepMat;
             }
+        }
+
+        static void SpawnWeed(Transform root, Vector3 floor, Material mat, System.Random rng, float hMin, float hMax, float rad)
+        {
+            var weed = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            weed.name = "Seaweed";
+            Object.Destroy(weed.GetComponent<Collider>());
+            weed.transform.SetParent(root, false);
+            float h = Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
+            weed.transform.position = floor + Vector3.up * (h * 0.5f);
+            weed.transform.localScale = new Vector3(rad, h * 0.5f, rad);
+            weed.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, (float)rng.NextDouble() * 10f);
+            weed.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
     }
 }

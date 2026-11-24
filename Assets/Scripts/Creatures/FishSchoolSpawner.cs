@@ -63,19 +63,17 @@ namespace UnderwaterDiving
             float z;
             double roll = rng.NextDouble();
 
-            // Shallow species bias hard into the short bay entrance; others keep full perimeter.
-            bool nearshore = band == DepthBand.Shallow
-                ? roll < 0.55
-                : roll >= 0.78 && roll < 0.88;
+            // Majority on full soft-boundary ring; keep a smaller bay-entrance pocket for the walk-in.
+            bool nearshore = band == DepthBand.Shallow && roll < 0.28;
             if (nearshore)
             {
-                // Short Maldives entrance: fish right past the curved waterline.
+                // Short Maldives entrance: some fish right past the curved waterline.
                 float along = Mathf.Lerp(-DiveWorldConfig.ShoreArcHalfWidth * 1.15f,
                     DiveWorldConfig.ShoreArcHalfWidth * 1.15f, (float)rng.NextDouble());
                 x = along + (float)(rng.NextDouble() * 20.0 - 10.0);
                 z = DiveWorldConfig.ShorelineZ(x) + 5f + (float)(rng.NextDouble() * 90.0);
             }
-            else if (roll < 0.78)
+            else if (roll < 0.82)
             {
                 float minFrac = body == CreatureBody.Eel || body == CreatureBody.Snake ? 0.7f : 0.82f;
                 float maxFrac = 0.97f;
