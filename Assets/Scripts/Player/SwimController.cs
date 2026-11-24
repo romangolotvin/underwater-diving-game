@@ -7,7 +7,7 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// First-person underwater swimming with buoyancy, quadratic drag, and tuned thrust.
-    /// Quality-focused: smooth accel, surface transition, and responsive look.
+    /// Shore walk uses direct transform displace so PhysX contact/friction cannot cancel WASD.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class SwimController : MonoBehaviour
@@ -27,7 +27,6 @@ namespace UnderwaterDiving
         [SerializeField] float sprintMultiplier = 1.55f;
         [SerializeField] float maxSwimSpeed = 7.5f;
         [SerializeField] float maxSprintSpeed = 11f;
-        [SerializeField] float aboveWaterWalkForce = 28f;
         [SerializeField] float aboveWaterMaxSpeed = 6.5f;
         [SerializeField] float jumpForce = 6.5f;
 
@@ -50,6 +49,7 @@ namespace UnderwaterDiving
         [SerializeField] float nearSurfaceBobFrequency = 1.1f;
 
         Rigidbody body;
+        CapsuleCollider capsule;
         float yaw;
         float pitch;
         Vector3 smoothedMove;
@@ -59,6 +59,7 @@ namespace UnderwaterDiving
         bool jumpQueued;
         bool cursorLocked = true;
         int lockAcquiredFrame = -1;
+        bool loggedMoveOnce;
         DiverSuit suit;
         static readonly List<RaycastResult> UiRaycastBuffer = new List<RaycastResult>(16);
 
@@ -87,6 +88,7 @@ namespace UnderwaterDiving
         {
             Instance = this;
             body = GetComponent<Rigidbody>();
+            capsule = GetComponent<CapsuleCollider>();
             EnsureDynamicBody();
             body.mass = playerMass;
             body.useGravity = true;
@@ -122,7 +124,31 @@ namespace UnderwaterDiving
         {
             LockCursor(true);
             EnsureDynamicBody();
+            ClearNearbyTrapColliders(14f);
             UnstickFromGeometry();
+        }
+
+        /// <summary>
+        /// Absolute UI gate from live panel flags — closed map/shop can never leave thrust gated.
+        /// </summary>
+        void ReconcileUiGate()
+        {
+            bool map = WorldMapPanel.Instance != null && WorldMapPanel.Instance.IsOpen;
+            bool gear = GearMarket.Instance != null && GearMarket.Instance.IsOpen;
+            bool decor = DecorShop.Instance != null && DecorShop.Instance.IsOpen;
+            bool coral = AnyCoralShopOpen();
+            GameUi.ReconcileLive(map, gear, decor, coral);
+        }
+
+        static bool AnyCoralShopOpen()
+        {
+            var shops = Object.FindObjectsByType<CoralDiveShop>(FindObjectsSortMode.None);
+            for (int i = 0; i < shops.Length; i++)
+            {
+                if (shops[i] != null && shops[i].IsOpen)
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -134,42 +160,78 @@ namespace UnderwaterDiving
             if (body == null)
                 return;
 
-            var capsule = GetComponent<CapsuleCollider>();
+            if (capsule == null)
+                capsule = GetComponent<CapsuleCollider>();
             if (capsule == null)
                 return;
 
-            Vector3 origin = transform.position + Vector3.up * 8f;
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit ground, 24f, ~0, QueryTriggerInteraction.Ignore))
+            float half = Mathf.Max(0.05f, capsule.height * 0.5f);
+            const float skin = 0.22f;
+
+            // Prefer raycast onto the floor mesh (works with non-convex MeshCollider).
+            Vector3 origin = transform.position + Vector3.up * 12f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit ground, 40f, ~0, QueryTriggerInteraction.Ignore))
             {
-                float half = Mathf.Max(0.05f, capsule.height * 0.5f);
                 Vector3 p = transform.position;
-                p.y = ground.point.y + half + 0.06f;
+                p.y = ground.point.y + half + skin;
+                transform.position = p;
+                body.position = p;
+            }
+            else
+            {
+                // Analytical fallback: beach pad is near WaterSurfaceY when ray misses.
+                Vector3 p = transform.position;
+                p.y = Mathf.Max(p.y, DiveWorldConfig.WaterSurfaceY + half + skin);
                 transform.position = p;
                 body.position = p;
             }
 
+            // Disable overlapping primitive colliders (rocks/decks). ComputePenetration cannot
+            // resolve non-convex MeshCollider embeds — those are handled by the Y snap above.
             Collider[] hits = Physics.OverlapSphere(
-                transform.position, capsule.radius + 0.65f, ~0, QueryTriggerInteraction.Ignore);
+                transform.position, capsule.radius + 1.1f, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < hits.Length; i++)
             {
                 var other = hits[i];
                 if (other == null || other == capsule || other.transform.IsChildOf(transform))
                     continue;
+                if (other is MeshCollider)
+                    continue; // keep OceanFloor walkable
+
                 if (Physics.ComputePenetration(
                         capsule, transform.position, transform.rotation,
                         other, other.transform.position, other.transform.rotation,
                         out Vector3 dir, out float dist)
                     && dist > 0.001f)
                 {
-                    Vector3 p = transform.position + dir * (dist + 0.06f);
-                    transform.position = p;
-                    body.position = p;
+                    // Prefer disabling the trap over endless penetration fight.
+                    other.enabled = false;
                 }
             }
 
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.WakeUp();
+        }
+
+        /// <summary>
+        /// Strip rock / stall / headland colliders around a point so the diver cannot wedge at spawn.
+        /// Keeps OceanFloor MeshCollider so walking still has ground.
+        /// </summary>
+        public void ClearNearbyTrapColliders(float radius)
+        {
+            Vector3 center = transform.position;
+            Collider[] hits = Physics.OverlapSphere(center, radius, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var c = hits[i];
+                if (c == null || c.transform.IsChildOf(transform))
+                    continue;
+                if (c is MeshCollider && c.gameObject.name.Contains("OceanFloor"))
+                    continue;
+                // Beach pad: kill anything that isn't the seabed mesh.
+                Object.Destroy(c);
+            }
         }
 
         void OnApplicationFocus(bool focus)
@@ -186,6 +248,9 @@ namespace UnderwaterDiving
         {
             if (Time.timeScale <= 0.001f)
                 Time.timeScale = 1f;
+
+            // Reconcile BEFORE the BlocksGameplay gate so a closed panel cannot skip a frame of move.
+            ReconcileUiGate();
 
             // Sample move every frame — WASD held keys are reliable here; FixedUpdate alone can miss.
             cachedMoveInput = SampleMoveInput();
@@ -214,6 +279,7 @@ namespace UnderwaterDiving
         void FixedUpdate()
         {
             EnsureDynamicBody();
+            ReconcileUiGate();
 
             float surfaceY = DiveWorldConfig.WaterSurfaceY;
             float floorY = DiveWorldConfig.OceanFloorY;
@@ -423,34 +489,77 @@ namespace UnderwaterDiving
                 // Extra dedicated vertical authority (Space / Ctrl already in SampleMoveInput.y).
                 if (Mathf.Abs(smoothedMove.y) > 0.01f)
                     body.AddForce(Vector3.up * smoothedMove.y * verticalForce * 0.35f * forceMul, ForceMode.Acceleration);
+
+                LogMoveOnce(raw, wish * swimForce * forceMul);
             }
             else
             {
-                // Shore / surface: drive horizontal velocity directly so mesh friction cannot eat AddForce.
-                Vector3 flat = new Vector3(smoothedMove.x, 0f, smoothedMove.z);
+                // Shore / surface: RAW input (no SmoothDamp lag) + direct transform displace.
+                // PhysX contact solver can zero linearVelocity on MeshCollider contact every
+                // FixedUpdate — position writes cannot be killed by friction.
+                Vector3 flat = new Vector3(raw.x, 0f, raw.z);
                 float inputMag = Mathf.Clamp01(flat.magnitude);
-                if (flat.sqrMagnitude > 1f)
+                if (flat.sqrMagnitude > 1e-6f)
                     flat.Normalize();
-                Vector3 world = transform.TransformDirection(flat);
-                float target = aboveWaterMaxSpeed * forceMul * inputMag;
-                Vector3 v = body.linearVelocity;
-                Vector3 currentHoriz = new Vector3(v.x, 0f, v.z);
-                Vector3 desired = world * target;
-                Vector3 newHoriz = Vector3.MoveTowards(
-                    currentHoriz,
-                    desired,
-                    aboveWaterWalkForce * forceMul * Time.fixedDeltaTime);
-                body.linearVelocity = new Vector3(newHoriz.x, v.y, newHoriz.z);
+                else
+                    flat = Vector3.zero;
 
+                Vector3 world = transform.TransformDirection(flat);
+                float speed = aboveWaterMaxSpeed * forceMul * inputMag;
+                Vector3 wishVel = world * speed;
+                float dt = Time.fixedDeltaTime;
+
+                Vector3 p = body.position;
+                p.x += wishVel.x * dt;
+                p.z += wishVel.z * dt;
+
+                if (capsule == null)
+                    capsule = GetComponent<CapsuleCollider>();
+                float half = capsule != null ? Mathf.Max(0.05f, capsule.height * 0.5f) : 0.9f;
+                const float skin = 0.12f;
+
+                // Keep feet on sand while sliding XZ — ignore near-vertical wall hits.
+                bool grounded = false;
+                Vector3 rayOrigin = new Vector3(p.x, p.y + 2.5f, p.z);
+                if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit ground, 6f, ~0, QueryTriggerInteraction.Ignore)
+                    && Vector3.Dot(ground.normal, Vector3.up) > 0.35f)
+                {
+                    p.y = ground.point.y + half + skin;
+                    grounded = true;
+                }
+
+                body.position = p;
+                transform.position = p;
+
+                float yVel = body.linearVelocity.y;
                 if (jumpQueued)
                 {
                     jumpQueued = false;
-                    Vector3 jv = body.linearVelocity;
-                    if (jv.y < jumpForce)
-                        jv.y = jumpForce;
-                    body.linearVelocity = jv;
+                    if (yVel < jumpForce)
+                        yVel = jumpForce;
                 }
+                else if (grounded && yVel < 0f)
+                {
+                    yVel = 0f;
+                }
+
+                // Also set velocity so jump/gravity feel coherent; displace already moved XZ.
+                body.linearVelocity = new Vector3(wishVel.x, yVel, wishVel.z);
+                body.WakeUp();
+
+                LogMoveOnce(raw, wishVel);
             }
+        }
+
+        void LogMoveOnce(Vector3 input, Vector3 applied)
+        {
+            if (loggedMoveOnce || input.sqrMagnitude < 0.01f)
+                return;
+            loggedMoveOnce = true;
+            Debug.Log(
+                $"[Swim] WASD applied input={input} vel={body.linearVelocity} " +
+                $"applied={applied} blocked={GameUi.BlocksGameplay} underwater={IsUnderwater} " +
+                $"pos={transform.position}");
         }
 
         void ClampMaxSpeed()

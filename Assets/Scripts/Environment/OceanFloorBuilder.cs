@@ -81,7 +81,10 @@ namespace UnderwaterDiving
             if (sandFloor.HasProperty("_BumpScale"))
                 sandFloor.SetFloat("_BumpScale", 1.65f);
             mr.sharedMaterial = sandFloor;
-            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            var floorCol = go.AddComponent<MeshCollider>();
+            floorCol.sharedMesh = mesh;
+            // Match diver capsule — default mesh friction was eating shore walk even with velocity writes.
+            floorCol.material = SharedZeroFriction.Material;
 
             ScatterInteriorFeatures(go.transform, heights, res, -half, step);
             BuildBeachExtras(go.transform);
@@ -323,8 +326,8 @@ namespace UnderwaterDiving
                     rock.GetComponent<MeshRenderer>().sharedMaterial =
                         along > 0.4f && rng.NextDouble() < 0.4 ? coralMat : rockMat;
 
-                    // Keep the open swim/walk channel free — colliders here trapped the diver at spawn.
-                    if (Mathf.Abs(ox) < channel + 14f)
+                    // Keep the open swim/walk channel + spawn pad free — colliders here trapped WASD.
+                    if (Mathf.Abs(ox) < channel + 28f)
                         Object.Destroy(rock.GetComponent<Collider>());
                 }
             }

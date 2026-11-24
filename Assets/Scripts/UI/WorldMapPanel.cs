@@ -20,15 +20,21 @@ namespace UnderwaterDiving
             public Vector2 Anchor;
         }
 
+        public static WorldMapPanel Instance { get; private set; }
+
         GameObject panelRoot;
         Button toggleButton;
         Text toggleLabel;
         bool open;
 
+        /// <summary>True only while the map panel is actually visible.</summary>
+        public bool IsOpen => open && panelRoot != null && panelRoot.activeSelf;
+
         public static WorldMapPanel Attach(Transform hudRoot)
         {
             ShopUiUtil.EnsureEventSystem();
             var panel = hudRoot.gameObject.AddComponent<WorldMapPanel>();
+            Instance = panel;
             panel.Build(hudRoot);
             return panel;
         }
@@ -237,8 +243,10 @@ namespace UnderwaterDiving
                 rb.WakeUp();
             }
             swim.transform.position = worldPos;
+            swim.ClearNearbyTrapColliders(12f);
             swim.UnstickFromGeometry();
             Close();
+            GameUi.ClearBlocking();
         }
 
         void OnDisable()
@@ -248,10 +256,18 @@ namespace UnderwaterDiving
             GameUi.SetBlocked(GameUi.Blocker.Map, false);
         }
 
+        void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
+            open = false;
+            GameUi.SetBlocked(GameUi.Blocker.Map, false);
+        }
+
         void LateUpdate()
         {
             // Authoritative sync: closed map must not keep BlocksGameplay true.
-            GameUi.SetBlocked(GameUi.Blocker.Map, open && panelRoot != null && panelRoot.activeSelf);
+            GameUi.SetBlocked(GameUi.Blocker.Map, IsOpen);
         }
 
         void Update()

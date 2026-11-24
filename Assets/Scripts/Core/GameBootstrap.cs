@@ -122,6 +122,15 @@ namespace UnderwaterDiving
                 ShopProgress.Instance.ApplyToPlayer();
             if (CosmeticLocker.Instance != null)
                 CosmeticLocker.Instance.ApplyVisuals();
+
+            // After all stalls/reefs exist: strip trap colliders around spawn, then unstick.
+            var swim = SwimController.Instance;
+            if (swim != null)
+            {
+                swim.ClearNearbyTrapColliders(16f);
+                swim.UnstickFromGeometry();
+            }
+            GameUi.ClearBlocking();
         }
 
         void CreatePlayer(Transform root)
@@ -147,15 +156,7 @@ namespace UnderwaterDiving
             col.radius = 0.35f;
             col.center = new Vector3(0f, 0f, 0f);
             // Zero friction so shore mesh contact cannot cancel WASD walk thrust.
-            var walkMat = new PhysicsMaterial("DiverWalk")
-            {
-                dynamicFriction = 0f,
-                staticFriction = 0f,
-                frictionCombine = PhysicsMaterialCombine.Minimum,
-                bounceCombine = PhysicsMaterialCombine.Minimum,
-                bounciness = 0f
-            };
-            col.material = walkMat;
+            col.material = SharedZeroFriction.Material;
 
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             body.name = "SuitBody";

@@ -4,8 +4,9 @@ namespace UnderwaterDiving
 {
     /// <summary>
     /// Shared UI focus flag so shops/map pause speargun / look lock / thrust.
-    /// Uses a blocker mask so one panel's Close cannot clear another panel's block,
-    /// and a closed map cannot leave BlocksGameplay stuck true.
+    /// Uses a blocker mask so one panel's Close cannot clear another panel's block.
+    /// <see cref="ReconcileLive"/> is the absolute authority: closed panels can never
+    /// leave BlocksGameplay stuck true.
     /// </summary>
     public static class GameUi
     {
@@ -53,8 +54,31 @@ namespace UnderwaterDiving
             if (before == mask)
                 return;
 
-            bool nowBlocked = mask != 0;
-            bool wasBlocked = before != 0;
+            ApplyCursorEdge(before != 0, mask != 0);
+        }
+
+        /// <summary>
+        /// Absolute sync from live panel open flags. Call every frame from SwimController
+        /// so a closed map/shop can never leave thrust gated.
+        /// </summary>
+        public static void ReconcileLive(bool mapOpen, bool gearOpen, bool decorOpen, bool coralOpen)
+        {
+            int desired = 0;
+            if (mapOpen) desired |= (int)Blocker.Map;
+            if (gearOpen) desired |= (int)Blocker.GearMarket;
+            if (decorOpen) desired |= (int)Blocker.DecorShop;
+            if (coralOpen) desired |= (int)Blocker.CoralShop;
+
+            if (desired == mask)
+                return;
+
+            bool wasBlocked = mask != 0;
+            mask = desired;
+            ApplyCursorEdge(wasBlocked, mask != 0);
+        }
+
+        static void ApplyCursorEdge(bool wasBlocked, bool nowBlocked)
+        {
             if (nowBlocked == wasBlocked)
                 return;
 

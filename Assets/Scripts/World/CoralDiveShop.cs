@@ -162,6 +162,7 @@ namespace UnderwaterDiving
         }
 
         public bool PlayerNear => playerNear;
+        public bool IsOpen => open && panel != null && panel.activeSelf;
 
         void Open()
         {
@@ -198,9 +199,10 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            // Several coral stalls share one blocker bit — only the open stall refreshes it.
-            if (open)
-                GameUi.SetBlocked(GameUi.Blocker.CoralShop, panel != null && panel.activeSelf);
+            // Shared CoralShop bit: only assert when this stall is open.
+            // Absolute clear of stale bits is SwimController → GameUi.ReconcileLive.
+            if (IsOpen)
+                GameUi.SetBlocked(GameUi.Blocker.CoralShop, true);
         }
 
         void Cycle(int delta)

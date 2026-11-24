@@ -91,6 +91,7 @@ namespace UnderwaterDiving
         }
 
         public bool PlayerNear => playerNear;
+        public bool IsOpen => open && panel != null && panel.activeSelf;
 
         void Open()
         {
@@ -127,7 +128,7 @@ namespace UnderwaterDiving
 
         void LateUpdate()
         {
-            GameUi.SetBlocked(GameUi.Blocker.DecorShop, open && panel != null && panel.activeSelf);
+            GameUi.SetBlocked(GameUi.Blocker.DecorShop, IsOpen);
         }
 
         void Cycle(int delta)
