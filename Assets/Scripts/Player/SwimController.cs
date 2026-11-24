@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace UnderwaterDiving
 {
@@ -51,9 +52,13 @@ namespace UnderwaterDiving
         Vector3 smoothedMove;
         Vector3 moveVelocityRef;
         bool cursorLocked = true;
+        int lockAcquiredFrame = -1;
         DiverSuit suit;
 
         public Transform CameraPivot => cameraPivot;
+        public bool IsCursorLocked => cursorLocked && Cursor.lockState == CursorLockMode.Locked;
+        /// <summary>True when locked, but not on the same frame the lock was acquired (click-to-re-lock).</summary>
+        public bool CanUseCombatInput => IsCursorLocked && lockAcquiredFrame != Time.frameCount;
 
         public void SetCameraPivot(Transform pivot) => cameraPivot = pivot;
 
@@ -107,9 +112,15 @@ namespace UnderwaterDiving
         void Update()
         {
             if (GameUi.BlocksGameplay)
+            {
+                // UI owns the cursor — never leave cursorLocked stuck true while free.
+                if (cursorLocked || Cursor.lockState == CursorLockMode.Locked)
+                    LockCursor(false);
                 return;
+            }
+
             HandleCursor();
-            if (cursorLocked)
+            if (IsCursorLocked)
                 HandleLook();
         }
 
@@ -156,14 +167,32 @@ namespace UnderwaterDiving
 
         void HandleCursor()
         {
-            if (Input.GetKeyDown(KeyCode.Escape))
+            // Engine / focus can unlock without our flag (Esc on some players).
+            if (cursorLocked && Cursor.lockState != CursorLockMode.Locked)
+                cursorLocked = false;
+
+            // Click-to-re-lock: use real lock state so a desynced flag can't block recovery.
+            if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
+            {
+                if (!IsPointerOverUi())
+                    LockCursor(true);
+                return;
+            }
+
+            // Map/shops consume Escape first via GameUi.TryConsumeEscape.
+            if (GameUi.TryConsumeEscape())
                 LockCursor(false);
-            if (Input.GetMouseButtonDown(0) && !cursorLocked && !GameUi.BlocksGameplay)
-                LockCursor(true);
+        }
+
+        static bool IsPointerOverUi()
+        {
+            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
         }
 
         public void LockCursor(bool locked)
         {
+            if (locked && !cursorLocked)
+                lockAcquiredFrame = Time.frameCount;
             cursorLocked = locked;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;

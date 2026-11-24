@@ -145,7 +145,8 @@ namespace UnderwaterDiving
                 return;
             }
 
-            if (Input.GetMouseButtonDown(0) && IsReady && Cursor.lockState == CursorLockMode.Locked)
+            // Skip the click that re-locks the cursor (same frame as LockCursor).
+            if (Input.GetMouseButtonDown(0) && IsReady && swim.CanUseCombatInput)
                 Fire();
 
             if (Input.GetMouseButtonDown(1) && spearOut)

@@ -215,7 +215,8 @@ namespace UnderwaterDiving
 
         void Update()
         {
-            if (open && Input.GetKeyDown(KeyCode.Escape))
+            // Consume Escape before SwimController unlocks cursor on the same key.
+            if (open && GameUi.TryConsumeEscape())
                 Close();
         }
     }

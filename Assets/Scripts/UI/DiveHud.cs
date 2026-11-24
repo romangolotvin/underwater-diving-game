@@ -52,6 +52,7 @@ namespace UnderwaterDiving
             rt.offsetMax = Vector2.zero;
             var bg = barGo.AddComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.45f);
+            bg.raycastTarget = false;
 
             var fillGo = new GameObject("Fill", typeof(RectTransform));
             fillGo.transform.SetParent(barGo.transform, false);
@@ -65,6 +66,7 @@ namespace UnderwaterDiving
             airFill.type = Image.Type.Filled;
             airFill.fillMethod = Image.FillMethod.Horizontal;
             airFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+            airFill.raycastTarget = false;
 
             var ch = new GameObject("Crosshair", typeof(RectTransform));
             ch.transform.SetParent(root, false);
@@ -74,6 +76,7 @@ namespace UnderwaterDiving
             crt.sizeDelta = new Vector2(8f, 8f);
             crosshair = ch.AddComponent<Image>();
             crosshair.color = new Color(0.9f, 0.95f, 1f, 0.55f);
+            crosshair.raycastTarget = false;
         }
 
         static Text MakeLabel(Transform parent, string name, Vector2 aMin, Vector2 aMax, TextAnchor anchor, int size = 28)
@@ -94,6 +97,8 @@ namespace UnderwaterDiving
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.text = "";
+            // Let click-to-re-lock reach SwimController instead of eating the click.
+            text.raycastTarget = false;
             return text;
         }
 

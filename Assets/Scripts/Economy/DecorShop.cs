@@ -83,7 +83,7 @@ namespace UnderwaterDiving
 
             if (playerNear && !open && !GameUi.BlocksGameplay && Input.GetKeyDown(KeyCode.F))
                 Open();
-            if (open && Input.GetKeyDown(KeyCode.Escape))
+            if (open && GameUi.TryConsumeEscape())
                 Close();
             if (open)
                 Refresh();
