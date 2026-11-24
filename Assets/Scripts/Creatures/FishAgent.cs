@@ -25,6 +25,11 @@ namespace UnderwaterDiving
         float flapAmp = 10f;
         float flapRate = 3f;
 
+        // Prey flees player until far enough (no RNG "break free"); hostile may chase.
+        bool fleeing;
+        float scareRadius;
+        float calmRadius;
+
         public static FishAgent Spawn(Transform parent, FishSpecies species, Vector3 pos)
         {
             var stats = CreatureCatalog.Get(species);
@@ -41,6 +46,16 @@ namespace UnderwaterDiving
             fish.speed = stats.Speed;
             fish.turn = Random.Range(0f, 360f);
             fish.animPhase = Random.Range(0f, Mathf.PI * 2f);
+            fish.scareRadius = stats.Body switch
+            {
+                CreatureBody.SmallFish => 9f,
+                CreatureBody.Seahorse => 7f,
+                CreatureBody.Turtle => 11f,
+                CreatureBody.Ray => 12f,
+                CreatureBody.Dolphin => 14f,
+                _ => 10f
+            };
+            fish.calmRadius = fish.scareRadius * 2.6f;
             fish.ConfigureAnim(stats.Body);
             fish.BuildVisual(stats);
             fish.velocity = Random.onUnitSphere;
@@ -231,26 +246,57 @@ namespace UnderwaterDiving
             Vector3 toHome = home - transform.position;
             Vector3 desired;
             bool chase = false;
+            bool flee = false;
 
             var swim = SwimController.Instance;
-            if (IsHostile && swim != null && swim.IsUnderwater && !GameUi.BlocksGameplay)
+            if (swim != null && swim.IsUnderwater && !GameUi.BlocksGameplay)
             {
                 float dist = Vector3.Distance(transform.position, swim.transform.position);
-                float aggro = stats.Body == CreatureBody.Shark ? 22f : 16f;
-                if (dist < aggro)
+                Vector3 away = (transform.position - swim.transform.position);
+                if (away.sqrMagnitude < 0.01f)
+                    away = -swim.transform.forward;
+                away.Normalize();
+
+                if (IsHostile)
                 {
-                    chase = true;
-                    desired = (swim.transform.position - transform.position).normalized * (speed * 1.35f);
-                    if (dist < 1.7f && attackCooldown <= 0f)
+                    float aggro = stats.Body == CreatureBody.Shark ? 22f : 16f;
+                    if (dist < aggro)
                     {
-                        AttackPlayer(swim);
-                        attackCooldown = 1.35f;
+                        chase = true;
+                        desired = (swim.transform.position - transform.position).normalized * (speed * 1.35f);
+                        if (dist < 1.7f && attackCooldown <= 0f)
+                        {
+                            AttackPlayer(swim);
+                            attackCooldown = 1.35f;
+                        }
+                    }
+                    else desired = (wander + toHome * 0.05f).normalized * speed;
+                }
+                else
+                {
+                    // Prey: scare and swim away. No RNG escape — player either spears it or gives up.
+                    if (!fleeing && dist <= scareRadius)
+                        fleeing = true;
+                    if (fleeing && dist >= calmRadius)
+                        fleeing = false;
+
+                    if (fleeing)
+                    {
+                        flee = true;
+                        // Steady flee speed above cruise so a slow diver may fail to catch up.
+                        float fleeSpeed = speed * 1.55f;
+                        desired = (away + wander * 0.15f).normalized * fleeSpeed;
+                        home = transform.position + away * 4f;
+                    }
+                    else
+                    {
+                        desired = DesiredByBody(wander, toHome);
                     }
                 }
-                else desired = (wander + toHome * 0.05f).normalized * speed;
             }
             else
             {
+                fleeing = false;
                 desired = DesiredByBody(wander, toHome);
             }
 
@@ -266,7 +312,8 @@ namespace UnderwaterDiving
             if (flat.magnitude > DiveWorldConfig.SoftBoundaryRadius * 0.75f)
                 desired += -flat.normalized * 2f;
 
-            velocity = Vector3.Lerp(velocity, desired, dt * (chase ? 2.5f : 1.5f));
+            float accel = chase || flee ? 2.6f : 1.5f;
+            velocity = Vector3.Lerp(velocity, desired, dt * accel);
             transform.position += velocity * dt;
             if (velocity.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(velocity.normalized), dt * 3.5f);
@@ -274,7 +321,7 @@ namespace UnderwaterDiving
             if (attackCooldown > 0f)
                 attackCooldown -= dt;
 
-            AnimateBody(chase ? 1.4f : 1f);
+            AnimateBody(chase || flee ? 1.45f : 1f);
         }
 
         Vector3 DesiredByBody(Vector3 wander, Vector3 toHome)
